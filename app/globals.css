@@ -287,7 +287,7 @@
   right: calc(var(--gutter) - 10px);
 }
 .maplibregl-map .maplibregl-ctrl-bottom-right {
-  bottom: calc(var(--gutter) + 2.5rem);
+  bottom: calc(var(--gutter) - 10px);
   right: calc(var(--gutter) - 10px);
 }
 @media (width < 64rem) {
