@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # The image as deployed: compose.yaml with a throwaway token, then the health
 # check, the sign-in screen and one MCP round trip. ci runs it with the image
-# loaded as ghcr.io/zyx1121/trip:ci.
+# loaded as ghcr.io/zyx-tw/trip:ci.
 set -euo pipefail
 trap 'docker compose logs; docker compose down -v' EXIT
 token=$(openssl rand -hex 32)

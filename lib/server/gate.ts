@@ -1,6 +1,6 @@
 /**
  * Sign-in through auth.zyx.tw, for one service. Copy this file into the
- * service unchanged (the canonical copy lives in zyx1121/auth/client/gate.ts).
+ * service unchanged (the canonical copy lives in zyx-tw/auth/client/gate.ts).
  *
  * 1. `start()` sends the browser to auth.zyx.tw with a random state in a cookie.
  * 2. auth.zyx.tw posts a signed token back to `/auth/callback`.

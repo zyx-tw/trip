@@ -16,7 +16,7 @@ export type Width = (typeof WIDTHS)[number]
 
 const MAX_BYTES = 8 * 1024 * 1024
 const USER_AGENT =
-  "trip.zyx.tw (personal trip planner; https://github.com/zyx1121/trip)"
+  "trip.zyx.tw (personal trip planner; https://github.com/zyx-tw/trip)"
 
 const g = globalThis as unknown as {
   tripPhotos?: Map<string, Promise<Buffer | null>>
