@@ -1,4 +1,14 @@
-export const CATEGORIES = ["sight", "food", "cafe", "sweets", "shop", "hotel", "station", "airport", "other"] as const
+export const CATEGORIES = [
+  "sight",
+  "food",
+  "cafe",
+  "sweets",
+  "shop",
+  "hotel",
+  "station",
+  "airport",
+  "other",
+] as const
 export type Category = (typeof CATEGORIES)[number]
 
 export const CATEGORY_LABEL: Record<Category, string> = {
@@ -34,6 +44,8 @@ export type Place = {
   position: number
   /** When to be there, HH:MM in the trip's time zone, or null. Transit to it arrives by then. */
   time: string | null
+  /** For a stay: the check-out day. Each day after \`day\` up to it starts here, and each night before it ends here. */
+  until: string | null
   /** The name as written in the country, for example in Japanese. */
   name: string
   /** The name in Traditional Chinese, empty when it is the same. */
@@ -70,6 +82,8 @@ export type TripWithPlaces = Trip & { places: Place[] }
 
 /** One way to get from a place to the next one on the same day. */
 export type Leg = {
+  /** The day it is travelled, YYYY-MM-DD. */
+  day: string
   from: string
   to: string
   mode: "walk" | "transit"

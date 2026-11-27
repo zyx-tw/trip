@@ -47,6 +47,7 @@ const STEPS = [
   `alter table places add column apple_place_id text not null default '';`,
   `alter table places add column photos text not null default '[]';`,
   `alter table places add column pages text not null default '[]';`,
+  `alter table places add column until text;`,
 ]
 
 const globalDb = globalThis as unknown as { tripDb?: DatabaseSync }
