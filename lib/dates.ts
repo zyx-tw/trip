@@ -1,6 +1,6 @@
 const WEEKDAY = ["日", "一", "二", "三", "四", "五", "六"]
 
-/** 1/4 (一) for 2027-01-04. Dates are calendar days, so read them as UTC. */
+/** Month/day and the weekday in Chinese, for example for 2027-01-04. Dates are calendar days, so read them as UTC. */
 export function formatDay(day: string) {
   const d = new Date(`${day}T00:00:00Z`)
   return `${d.getUTCMonth() + 1}/${d.getUTCDate()} (${WEEKDAY[d.getUTCDay()]})`
