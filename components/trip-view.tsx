@@ -195,7 +195,7 @@ export function TripView({ initial }: { initial: TripWithPlaces }) {
                 !filtering && before?.day && before.day === place.day
                   ? legTo.get(place.id)
                   : undefined
-              const links = c.placeLinks(place)
+              const links = [...c.placeLinks(place), ...place.pages]
               return (
                 <Fragment key={place.id}>
                   {leg && <LegRow leg={leg} />}
@@ -240,7 +240,8 @@ export function TripView({ initial }: { initial: TripWithPlaces }) {
                         <span className="flex min-h-0 flex-col overflow-hidden">
                           {/* Pictures load only for the open row. */}
                           {selected === place.id && place.photos.length > 0 && (
-                            <span className="mt-3 flex gap-2 overflow-x-auto">
+                            // Each picture fills the row's width; swipe or scroll sideways for the next.
+                            <span className="mt-3 flex snap-x snap-mandatory gap-2 overflow-x-auto">
                               {place.photos.map((src) => (
                                 // External pictures of any size; next/image would need every host listed.
                                 // eslint-disable-next-line @next/next/no-img-element
@@ -250,7 +251,13 @@ export function TripView({ initial }: { initial: TripWithPlaces }) {
                                   alt=""
                                   loading="lazy"
                                   referrerPolicy="no-referrer"
-                                  className="h-32 w-auto shrink-0 bg-muted object-cover"
+                                  className={cn(
+                                    "aspect-[3/2] shrink-0 snap-start bg-muted object-cover",
+                                    // With more than one, the next one peeks in from the right.
+                                    place.photos.length > 1
+                                      ? "w-[88%]"
+                                      : "w-full"
+                                  )}
                                 />
                               ))}
                             </span>

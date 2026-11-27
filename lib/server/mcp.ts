@@ -28,7 +28,13 @@ const placeFields = {
   note: str("Why go, what to order, opening hours, in Traditional Chinese."),
   url: str("The official site or social account."),
   google_place_id: str("The Google Maps place id (ChIJ...) of the business. The page links to its Google business page only when this is set."),
-  photos: { type: "array", maxItems: 6, items: { type: "string" }, description: "Up to 6 https addresses of pictures of the place, shown when it is selected. Replaces the list." },
+  photos: { type: "array", maxItems: 6, items: { type: "string" }, description: "Up to 6 https addresses of pictures of this exact place, shown full width when it is selected. Replaces the list." },
+  pages: {
+    type: "array",
+    maxItems: 6,
+    items: { type: "object", properties: { label: { type: "string", description: "Short: 官網, Instagram, X, 食べログ." }, url: { type: "string" } }, required: ["label", "url"], additionalProperties: false },
+    description: "Other pages about the place, shown as links after the map apps. Replaces the list.",
+  },
   apple_place_id: str("The Apple Maps place id (the place-id in a maps.apple.com/place link, I...). The page links to its Apple business page only when this is set."),
 }
 

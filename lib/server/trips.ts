@@ -51,6 +51,7 @@ const toPlace = (r: Row): Place => ({
   googlePlaceId: String(r.google_place_id),
   applePlaceId: String(r.apple_place_id),
   photos: JSON.parse(String(r.photos)) as string[],
+  pages: JSON.parse(String(r.pages)) as Place["pages"],
 })
 
 /** Up to 6 https picture addresses, stored as JSON. */
@@ -61,6 +62,19 @@ function photos(value: unknown, field: string): string | undefined {
     if (typeof v !== "string" || v.length > 1000 || !v.startsWith("https://")) throw new InputError(`${field} must hold https addresses`)
   }
   return JSON.stringify(value)
+}
+
+/** Up to 6 labelled https pages, stored as JSON. */
+function pages(value: unknown, field: string): string | undefined {
+  if (value === undefined) return undefined
+  if (!Array.isArray(value) || value.length > 6) throw new InputError(`${field} must be a list of at most 6 pages`)
+  const out = value.map((v, i) => {
+    const label = text(v?.label, `${field}[${i}].label`, 20)
+    const url = text(v?.url, `${field}[${i}].url`, 1000)
+    if (!label || !url?.startsWith("https://")) throw new InputError(`${field}[${i}] needs a label and an https url`)
+    return { label, url }
+  })
+  return JSON.stringify(out)
 }
 
 function text(value: unknown, field: string, max = 500): string | undefined {
@@ -209,7 +223,7 @@ export function addPlaces(tripId: unknown, items: unknown): Place[] {
       const position = typeof item.position === "number" ? Math.trunc(item.position) : (last.p ?? -1) + 1
       const id = newId()
       d.prepare(
-        "insert into places (id, trip_id, day, position, time, name, name_zh, category, lat, lng, address, note, url, google_place_id, apple_place_id, photos, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "insert into places (id, trip_id, day, position, time, name, name_zh, category, lat, lng, address, note, url, google_place_id, apple_place_id, photos, pages, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       ).run(
         id,
         trip.id,
@@ -227,6 +241,7 @@ export function addPlaces(tripId: unknown, items: unknown): Place[] {
         text(item.google_place_id, `${at}.google_place_id`, 300) ?? "",
         text(item.apple_place_id, `${at}.apple_place_id`, 300) ?? "",
         photos(item.photos, `${at}.photos`) ?? "[]",
+        pages(item.pages, `${at}.pages`) ?? "[]",
         now,
         now,
       )
@@ -269,10 +284,11 @@ export function updatePlace(input: Row): Place {
     googlePlaceId: text(input.google_place_id, "google_place_id", 300) ?? place.googlePlaceId,
     applePlaceId: text(input.apple_place_id, "apple_place_id", 300) ?? place.applePlaceId,
     photos: photos(input.photos, "photos") ?? JSON.stringify(place.photos),
+    pages: pages(input.pages, "pages") ?? JSON.stringify(place.pages),
   }
   db()
-    .prepare("update places set day = ?, position = ?, time = ?, name = ?, name_zh = ?, category = ?, lat = ?, lng = ?, address = ?, note = ?, url = ?, google_place_id = ?, apple_place_id = ?, photos = ?, updated_at = ? where id = ?")
-    .run(next.day, next.position, next.time, next.name, next.nameZh, next.category, next.lat, next.lng, next.address, next.note, next.url, next.googlePlaceId, next.applePlaceId, next.photos, Date.now(), place.id)
+    .prepare("update places set day = ?, position = ?, time = ?, name = ?, name_zh = ?, category = ?, lat = ?, lng = ?, address = ?, note = ?, url = ?, google_place_id = ?, apple_place_id = ?, photos = ?, pages = ?, updated_at = ? where id = ?")
+    .run(next.day, next.position, next.time, next.name, next.nameZh, next.category, next.lat, next.lng, next.address, next.note, next.url, next.googlePlaceId, next.applePlaceId, next.photos, next.pages, Date.now(), place.id)
   changed(place.tripId)
   return requirePlace(place.id)
 }

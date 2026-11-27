@@ -48,7 +48,11 @@ export type Place = {
   applePlaceId: string
   /** Pictures of the place, https addresses, shown when it is selected. */
   photos: string[]
+  /** Other pages about the place: its own site, Instagram, Tabelog. */
+  pages: PageLink[]
 }
+
+export type PageLink = { label: string; url: string }
 
 export type Trip = {
   id: string
