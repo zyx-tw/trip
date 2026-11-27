@@ -1,0 +1,21 @@
+name: release
+
+# A push to main deploys the image ci passed to VM 117 through land:
+# carrel-deployd there runs deploy/carrel-start.sh.
+on:
+  push:
+    branches: [main]
+
+jobs:
+  ship:
+    uses: zyx1121/.github/.github/workflows/ship.yml@main
+    permissions:
+      contents: read
+      packages: write
+      actions: read
+      id-token: write
+    with:
+      images: '["ghcr.io/zyx1121/trip"]'
+      target: land
+      tenant: compose
+      app: trip
