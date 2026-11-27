@@ -3,3 +3,5 @@ node_modules
 .git
 data
 public/maplibre
+.env*
+!.env.example

@@ -115,6 +115,7 @@ export async function handleMcp(req: Request): Promise<Response> {
   } catch {
     return fail(null, -32700, "parse error")
   }
+  if (!message || typeof message !== "object" || Array.isArray(message)) return fail(null, -32600, "send one JSON-RPC request object")
   const { id, method } = message
   const params = (message.params ?? {}) as Args
   // A notification has no id and gets no body.
