@@ -187,6 +187,11 @@ export function TripView({ initial }: { initial: TripWithPlaces }) {
           <p className="mt-1 text-muted-foreground">
             {formatRange(trip.startDate, trip.endDate)}
           </p>
+          {trip.note && (
+            <p className="mt-3 text-caption whitespace-pre-line text-muted-foreground">
+              {trip.note}
+            </p>
+          )}
           <Input
             type="search"
             aria-label="搜尋"

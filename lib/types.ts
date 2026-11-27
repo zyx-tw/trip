@@ -1,4 +1,4 @@
-export const CATEGORIES = ["sight", "food", "cafe", "sweets", "shop", "hotel", "station", "other"] as const
+export const CATEGORIES = ["sight", "food", "cafe", "sweets", "shop", "hotel", "station", "airport", "other"] as const
 export type Category = (typeof CATEGORIES)[number]
 
 export const CATEGORY_LABEL: Record<Category, string> = {
@@ -9,6 +9,7 @@ export const CATEGORY_LABEL: Record<Category, string> = {
   shop: "商店",
   hotel: "住宿",
   station: "車站",
+  airport: "機場",
   other: "其他",
 }
 
@@ -21,6 +22,7 @@ export const CATEGORY_EMOJI: Record<Category, string> = {
   shop: "🛍️",
   hotel: "🏨",
   station: "🚉",
+  airport: "\u2708\ufe0f",
   other: "📍",
 }
 
