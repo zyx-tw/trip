@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from "react"
 
 import type { Place } from "@/lib/types"
 
-export type Pin = Place & { emoji: string; color: string }
+export type Pin = Place & { emoji: string }
 export type Line = { id: string; color: string; points: [number, number][] }
 
 const LINES = "trip-lines"
@@ -155,7 +155,7 @@ export function TripMap({
         const el = document.createElement("button")
         el.type = "button"
         el.className =
-          "flex size-8 items-center justify-center border-2 bg-background text-body"
+          "trip-pin text-title leading-none motion-safe:transition-transform"
         el.addEventListener("click", (event) => {
           event.stopPropagation()
           select.current(pin.id)
@@ -167,7 +167,6 @@ export function TripMap({
       }
       const el = marker.getElement()
       el.textContent = pin.emoji
-      el.style.borderColor = pin.color
       el.setAttribute("aria-label", pin.nameZh || pin.name)
       marker.setLngLat([pin.lng, pin.lat])
     }
@@ -191,8 +190,7 @@ export function TripMap({
 
   useEffect(() => {
     for (const [id, marker] of markers.current) {
-      marker.getElement().style.outline =
-        id === selected ? "2px solid var(--foreground)" : ""
+      marker.getElement().style.scale = id === selected ? "1.4" : ""
       marker.getElement().style.zIndex = id === selected ? "1" : ""
     }
     const pin = pins.find((p) => p.id === selected)

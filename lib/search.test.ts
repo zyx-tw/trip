@@ -33,6 +33,11 @@ test("letters in order still match a name", () => {
   expect(matches(place, "蘋派")).toBe(true)
 })
 
+test("extra text such as the day is searched too", () => {
+  expect(matches(place, "1/5", "1/5 (二)")).toBe(true)
+  expect(matches(place, "1/6", "1/5 (二)")).toBe(false)
+})
+
 test("a word that is nowhere does not match", () => {
   expect(matches(place, "拉麵")).toBe(false)
 })
