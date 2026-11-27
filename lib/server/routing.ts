@@ -9,7 +9,7 @@ import { db } from "./db"
 // every answer is cached and requests to each host go out one at a time.
 
 const USER_AGENT =
-  "trip.zyx.tw (personal trip planner; https://github.com/zyx1121/trip)"
+  "trip.zyx.tw (personal trip planner; https://github.com/zyx-tw/trip)"
 /** Farther than this in a straight line, a leg is planned by transit. */
 export const WALK_LIMIT_M = 1500
 const WALK_TTL = 30 * 86_400_000

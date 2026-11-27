@@ -15,7 +15,7 @@ jobs:
       actions: read
       id-token: write
     with:
-      images: '["ghcr.io/zyx1121/trip"]'
+      images: '["ghcr.io/zyx-tw/trip"]'
       target: land
       tenant: compose
       app: trip

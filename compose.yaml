@@ -8,7 +8,7 @@ name: trip
 
 services:
   web:
-    image: ghcr.io/zyx1121/trip:${TRIP_VERSION:-latest}
+    image: ghcr.io/zyx-tw/trip:${TRIP_VERSION:-latest}
     init: true
     stop_grace_period: 3s
     restart: unless-stopped
