@@ -46,6 +46,8 @@ export type Place = {
   googlePlaceId: string
   /** The place's business page in Apple Maps; empty when it has none. */
   applePlaceId: string
+  /** Pictures of the place, https addresses, shown when it is selected. */
+  photos: string[]
 }
 
 export type Trip = {

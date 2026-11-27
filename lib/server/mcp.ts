@@ -28,6 +28,7 @@ const placeFields = {
   note: str("Why go, what to order, opening hours, in Traditional Chinese."),
   url: str("The official site or social account."),
   google_place_id: str("The Google Maps place id (ChIJ...) of the business. The page links to its Google business page only when this is set."),
+  photos: { type: "array", maxItems: 6, items: { type: "string" }, description: "Up to 6 https addresses of pictures of the place, shown when it is selected. Replaces the list." },
   apple_place_id: str("The Apple Maps place id (the place-id in a maps.apple.com/place link, I...). The page links to its Apple business page only when this is set."),
 }
 

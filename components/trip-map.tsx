@@ -94,13 +94,10 @@ export function TripMap({
         ],
       },
     })
-    m.addControl(
-      new maplibregl.NavigationControl({ showCompass: false }),
-      "top-right"
-    )
+    // Pinch and the wheel zoom; the one button finds where you are, left of the attribution.
     m.addControl(
       new maplibregl.GeolocateControl({ trackUserLocation: true }),
-      "top-right"
+      "bottom-right"
     )
     map.current = m
     // The compact attribution opens on load; start it folded so it does not cover the map.
@@ -154,8 +151,7 @@ export function TripMap({
       if (!marker) {
         const el = document.createElement("button")
         el.type = "button"
-        el.className =
-          "trip-pin text-title leading-none motion-safe:transition-transform"
+        el.className = "trip-pin text-title leading-none"
         el.addEventListener("click", (event) => {
           event.stopPropagation()
           select.current(pin.id)
@@ -166,7 +162,14 @@ export function TripMap({
         markers.current.set(pin.id, marker)
       }
       const el = marker.getElement()
-      el.textContent = pin.emoji
+      // MapLibre moves the marker with a transform; the emoji inside scales on its own.
+      el.replaceChildren(
+        Object.assign(document.createElement("span"), {
+          textContent: pin.emoji,
+          className:
+            "block motion-safe:transition-transform motion-safe:duration-300",
+        })
+      )
       el.setAttribute("aria-label", pin.nameZh || pin.name)
       marker.setLngLat([pin.lng, pin.lat])
     }
@@ -190,14 +193,19 @@ export function TripMap({
 
   useEffect(() => {
     for (const [id, marker] of markers.current) {
-      marker.getElement().style.scale = id === selected ? "1.4" : ""
+      const emoji = marker.getElement().firstElementChild as HTMLElement | null
+      if (emoji) emoji.style.scale = id === selected ? "1.5" : ""
       marker.getElement().style.zIndex = id === selected ? "1" : ""
     }
     const pin = pins.find((p) => p.id === selected)
     if (pin)
       map.current?.flyTo({
         center: [pin.lng, pin.lat],
-        zoom: Math.max(map.current.getZoom(), 15),
+        zoom: Math.max(map.current.getZoom(), 16),
+        padding: paddingRef.current,
+        duration: 1200,
+        // Asked for by the person who picked the place, so it animates even under reduced motion.
+        essential: true,
       })
     // Fly only when the selection changes, not on every refetch.
     // eslint-disable-next-line react-hooks/exhaustive-deps

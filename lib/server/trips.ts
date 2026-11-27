@@ -50,7 +50,18 @@ const toPlace = (r: Row): Place => ({
   url: String(r.url),
   googlePlaceId: String(r.google_place_id),
   applePlaceId: String(r.apple_place_id),
+  photos: JSON.parse(String(r.photos)) as string[],
 })
+
+/** Up to 6 https picture addresses, stored as JSON. */
+function photos(value: unknown, field: string): string | undefined {
+  if (value === undefined) return undefined
+  if (!Array.isArray(value) || value.length > 6) throw new InputError(`${field} must be a list of at most 6 addresses`)
+  for (const v of value) {
+    if (typeof v !== "string" || v.length > 1000 || !v.startsWith("https://")) throw new InputError(`${field} must hold https addresses`)
+  }
+  return JSON.stringify(value)
+}
 
 function text(value: unknown, field: string, max = 500): string | undefined {
   if (value === undefined) return undefined
@@ -198,7 +209,7 @@ export function addPlaces(tripId: unknown, items: unknown): Place[] {
       const position = typeof item.position === "number" ? Math.trunc(item.position) : (last.p ?? -1) + 1
       const id = newId()
       d.prepare(
-        "insert into places (id, trip_id, day, position, time, name, name_zh, category, lat, lng, address, note, url, google_place_id, apple_place_id, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "insert into places (id, trip_id, day, position, time, name, name_zh, category, lat, lng, address, note, url, google_place_id, apple_place_id, photos, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       ).run(
         id,
         trip.id,
@@ -215,6 +226,7 @@ export function addPlaces(tripId: unknown, items: unknown): Place[] {
         text(item.url, `${at}.url`) ?? "",
         text(item.google_place_id, `${at}.google_place_id`, 300) ?? "",
         text(item.apple_place_id, `${at}.apple_place_id`, 300) ?? "",
+        photos(item.photos, `${at}.photos`) ?? "[]",
         now,
         now,
       )
@@ -256,10 +268,11 @@ export function updatePlace(input: Row): Place {
     url: text(input.url, "url") ?? place.url,
     googlePlaceId: text(input.google_place_id, "google_place_id", 300) ?? place.googlePlaceId,
     applePlaceId: text(input.apple_place_id, "apple_place_id", 300) ?? place.applePlaceId,
+    photos: photos(input.photos, "photos") ?? JSON.stringify(place.photos),
   }
   db()
-    .prepare("update places set day = ?, position = ?, time = ?, name = ?, name_zh = ?, category = ?, lat = ?, lng = ?, address = ?, note = ?, url = ?, google_place_id = ?, apple_place_id = ?, updated_at = ? where id = ?")
-    .run(next.day, next.position, next.time, next.name, next.nameZh, next.category, next.lat, next.lng, next.address, next.note, next.url, next.googlePlaceId, next.applePlaceId, Date.now(), place.id)
+    .prepare("update places set day = ?, position = ?, time = ?, name = ?, name_zh = ?, category = ?, lat = ?, lng = ?, address = ?, note = ?, url = ?, google_place_id = ?, apple_place_id = ?, photos = ?, updated_at = ? where id = ?")
+    .run(next.day, next.position, next.time, next.name, next.nameZh, next.category, next.lat, next.lng, next.address, next.note, next.url, next.googlePlaceId, next.applePlaceId, next.photos, Date.now(), place.id)
   changed(place.tripId)
   return requirePlace(place.id)
 }

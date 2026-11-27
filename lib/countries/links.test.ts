@@ -20,6 +20,7 @@ const place: Place = {
   url: "",
   googlePlaceId: "",
   applePlaceId: "",
+  photos: [],
 }
 
 test("a place without ids has no links", () => {
