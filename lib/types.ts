@@ -30,7 +30,10 @@ export type Place = {
   address: string
   note: string
   url: string
+  /** The place's business page in Google Maps; empty when it has none. */
   googlePlaceId: string
+  /** The place's business page in Apple Maps; empty when it has none. */
+  applePlaceId: string
 }
 
 export type Trip = {

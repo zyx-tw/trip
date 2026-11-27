@@ -27,7 +27,8 @@ const placeFields = {
   address: str("The address in the country's language."),
   note: str("Why go, what to order, opening hours, in Traditional Chinese."),
   url: str("The official site or social account."),
-  google_place_id: str("The Google Maps place id, when known. Makes the Google link open the exact place."),
+  google_place_id: str("The Google Maps place id (ChIJ...) of the business. The page links to its Google business page only when this is set."),
+  apple_place_id: str("The Apple Maps place id (the place-id in a maps.apple.com/place link, I...). The page links to its Apple business page only when this is set."),
 }
 
 /** Each place with the map links the trip's country uses. */
@@ -35,7 +36,7 @@ function withLinks(tripId: string) {
   const trip = getTrip(tripId)
   if (!trip) throw new InputError(`no trip "${tripId}"; list_trips shows the ids`)
   const c = country(trip.country)
-  return { ...trip, places: trip.places.map((p) => ({ ...p, links: c.placeLinks(p), routes: c.routeLinks(p) })) }
+  return { ...trip, places: trip.places.map((p) => ({ ...p, links: c.placeLinks(p) })) }
 }
 
 const point = { type: "object", properties: { lat: { type: "number" }, lng: { type: "number" } }, required: ["lat", "lng"], additionalProperties: false }

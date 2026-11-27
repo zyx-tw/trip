@@ -12,10 +12,8 @@ export type Country = {
   name: string
   /** IANA time zone the trip's times are written in. */
   timeZone: string
-  /** Map apps that open this place, most used there first. */
+  /** The place's business pages in the map apps used there, most used first; only those it has. */
   placeLinks: (place: Place) => MapLink[]
-  /** Map apps that route to this place by public transport. */
-  routeLinks: (place: Place) => MapLink[]
 }
 
 export const COUNTRIES: Record<string, Country> = { jp }
