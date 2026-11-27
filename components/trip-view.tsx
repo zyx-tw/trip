@@ -9,12 +9,24 @@ import {
   useSyncExternalStore,
 } from "react"
 
-import { BottomCorners, LegalLinks, TopCorners } from "@/components/corners"
+import { TopCorners } from "@/components/corners"
+import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
 import { country } from "@/lib/countries"
 import { daysOf, formatDay, formatRange } from "@/lib/dates"
+import { matches } from "@/lib/search"
 import {
+  CATEGORIES,
+  CATEGORY_EMOJI,
   CATEGORY_LABEL,
+  type Category,
   type Leg,
   type Place,
   type TripWithPlaces,
@@ -34,7 +46,27 @@ const dayColor = (index: number) =>
   `oklch(0.72 0.15 ${DAY_HUES[index % DAY_HUES.length]})`
 const CANDIDATE = "oklch(0.6 0 0)"
 
-type Group = { day: string | null; color: string; places: Place[] }
+type Group = {
+  key: string
+  title: string
+  /** The day's color; none when the list is grouped by category. */
+  color?: string
+  /** Numbered and joined by walks and rides: the places of one day, unfiltered. */
+  route: boolean
+  places: Place[]
+}
+
+const CATEGORY_ITEMS = [
+  { value: "all", label: "全部分類" },
+  ...CATEGORIES.map((c) => ({
+    value: c,
+    label: `${CATEGORY_EMOJI[c]} ${CATEGORY_LABEL[c]}`,
+  })),
+]
+const GROUP_ITEMS = [
+  { value: "day", label: "依日期" },
+  { value: "category", label: "依分類" },
+]
 
 export function TripView({ initial }: { initial: TripWithPlaces }) {
   const [trip, setTrip] = useState(initial)
@@ -43,6 +75,9 @@ export function TripView({ initial }: { initial: TripWithPlaces }) {
   /** On a phone: the list sheet pulled up (true) or resting low (false). */
   const [open, setOpen] = useState(false)
   const wide = useWide()
+  const [query, setQuery] = useState("")
+  const [category, setCategory] = useState<Category | "all">("all")
+  const [groupBy, setGroupBy] = useState<"day" | "category">("day")
 
   // A write through MCP sends "change"; refetch the trip and its routes then.
   useEffect(() => {
@@ -69,45 +104,77 @@ export function TripView({ initial }: { initial: TripWithPlaces }) {
 
   const legTo = useMemo(() => new Map(legs.map((l) => [l.to, l])), [legs])
 
+  const days = useMemo(
+    () => daysOf(trip.startDate, trip.endDate),
+    [trip.startDate, trip.endDate]
+  )
+  /** Each place's color: its day's, or gray while it is a candidate. */
+  const colorOf = useMemo(() => {
+    const index = new Map(days.map((d, i) => [d, i]))
+    return (p: Place) =>
+      p.day && index.has(p.day) ? dayColor(index.get(p.day)!) : CANDIDATE
+  }, [days])
+
+  const filtering = query.trim() !== "" || category !== "all"
+  const visible = useMemo(
+    () =>
+      trip.places.filter(
+        (p) =>
+          (category === "all" || p.category === category) && matches(p, query)
+      ),
+    [trip.places, query, category]
+  )
+
   const groups = useMemo<Group[]>(() => {
-    const days = daysOf(trip.startDate, trip.endDate)
-    const out: Group[] = days.map((day, i) => ({
-      day,
-      color: dayColor(i),
-      places: trip.places.filter((p) => p.day === day),
-    }))
-    out.push({
-      day: null,
-      color: CANDIDATE,
-      places: trip.places.filter((p) => !p.day),
-    })
+    const out: Group[] =
+      groupBy === "day"
+        ? [
+            ...days.map((day, i) => ({
+              key: day,
+              title: formatDay(day),
+              color: dayColor(i),
+              route: !filtering,
+              places: visible.filter((p) => p.day === day),
+            })),
+            {
+              key: "candidates",
+              title: "候選",
+              color: CANDIDATE,
+              route: false,
+              places: visible.filter((p) => !p.day),
+            },
+          ]
+        : CATEGORIES.map((c) => ({
+            key: c,
+            title: `${CATEGORY_EMOJI[c]} ${CATEGORY_LABEL[c]}`,
+            route: false,
+            places: visible.filter((p) => p.category === c),
+          }))
     return out.filter((g) => g.places.length > 0)
-  }, [trip])
+  }, [days, visible, groupBy, filtering])
 
   const pins = useMemo<Pin[]>(
     () =>
-      groups.flatMap((g) =>
-        g.places.map((p, i) => ({
-          ...p,
-          label: g.day ? String(i + 1) : "",
-          color: g.color,
-        }))
-      ),
-    [groups]
+      visible.map((p) => ({
+        ...p,
+        emoji: CATEGORY_EMOJI[p.category],
+        color: colorOf(p),
+      })),
+    [visible, colorOf]
   )
 
+  // Walks and rides join a day's places in order, so they hide while filtering.
   const lines = useMemo<Line[]>(() => {
-    const colorOf = new Map(
-      groups.flatMap((g) => g.places.map((p) => [p.id, g.color] as const))
-    )
+    if (filtering) return []
+    const byId = new Map(trip.places.map((p) => [p.id, p]))
     return legs
       .filter((l) => l.line)
       .map((l) => ({
         id: `${l.from}-${l.to}`,
-        color: colorOf.get(l.to) ?? CANDIDATE,
+        color: byId.has(l.to) ? colorOf(byId.get(l.to)!) : CANDIDATE,
         points: l.line!,
       }))
-  }, [legs, groups])
+  }, [legs, trip.places, colorOf, filtering])
 
   const c = country(trip.country)
 
@@ -134,7 +201,10 @@ export function TripView({ initial }: { initial: TripWithPlaces }) {
           padding={padding}
         />
       </div>
-      <TopCorners nav={<ThemeToggle />} />
+      <TopCorners
+        trail={[{ label: "旅行", href: "/" }, { label: trip.title }]}
+        nav={<ThemeToggle />}
+      />
       <aside
         aria-label="行程"
         className={cn(
@@ -142,7 +212,7 @@ export function TripView({ initial }: { initial: TripWithPlaces }) {
           // Phone: a sheet along the bottom. Wide screens: a panel on the left.
           "inset-x-0 bottom-0 border-x-0 border-b-0",
           open ? "h-[85dvh]" : "h-(--sheet-low)",
-          "lg:top-[calc(var(--gutter)+2.5rem)] lg:bottom-[calc(var(--gutter)+2.5rem)] lg:left-(--gutter) lg:h-auto lg:w-100 lg:border-x lg:border-b"
+          "lg:top-[calc(var(--gutter)+2.5rem)] lg:bottom-(--gutter) lg:left-(--gutter) lg:h-auto lg:w-100 lg:border-x lg:border-b"
         )}
         style={{ "--sheet-low": `${SHEET_LOW_PX}px` } as React.CSSProperties}
       >
@@ -160,24 +230,68 @@ export function TripView({ initial }: { initial: TripWithPlaces }) {
           <p className="mt-1 text-muted-foreground">
             {formatRange(trip.startDate, trip.endDate)}
           </p>
+          <div className="mt-5 flex flex-col gap-2">
+            <Input
+              type="search"
+              aria-label="搜尋"
+              placeholder="搜尋"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <Select
+                items={CATEGORY_ITEMS}
+                value={category}
+                onValueChange={(v) => setCategory(v as Category | "all")}
+              >
+                <SelectTrigger aria-label="分類" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CATEGORY_ITEMS.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                items={GROUP_ITEMS}
+                value={groupBy}
+                onValueChange={(v) => setGroupBy(v as "day" | "category")}
+              >
+                <SelectTrigger aria-label="分組" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {GROUP_ITEMS.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          {groups.length === 0 && (
+            <p className="mt-10 text-muted-foreground">沒有符合的地點</p>
+          )}
           {groups.map((group) => (
-            <section
-              key={group.day ?? "candidates"}
-              className="mt-10"
-              aria-label={group.day ? formatDay(group.day) : "候選"}
-            >
+            <section key={group.key} className="mt-10" aria-label={group.title}>
               <h2 className="flex items-center gap-3 text-title font-medium">
-                <span
-                  aria-hidden
-                  className="size-3"
-                  style={{ background: group.color }}
-                />
-                {group.day ? formatDay(group.day) : "候選"}
+                {group.color && (
+                  <span
+                    aria-hidden
+                    className="size-3"
+                    style={{ background: group.color }}
+                  />
+                )}
+                {group.title}
               </h2>
               <ol className="mt-4 flex flex-col">
                 {group.places.map((place, i) => (
                   <Fragment key={place.id}>
-                    {group.day && legTo.get(place.id) && (
+                    {group.route && legTo.get(place.id) && (
                       <LegRow leg={legTo.get(place.id)!} />
                     )}
                     <li
@@ -192,20 +306,25 @@ export function TripView({ initial }: { initial: TripWithPlaces }) {
                     >
                       <div className="flex w-full cursor-pointer gap-4">
                         <span className="w-6 shrink-0 text-muted-foreground">
-                          {group.day ? i + 1 : ""}
+                          {group.route ? i + 1 : ""}
                         </span>
                         <span className="flex min-w-0 flex-col">
-                          <span lang="ja">{place.name}</span>
+                          <span lang="ja">
+                            <span aria-hidden className="mr-2">
+                              {CATEGORY_EMOJI[place.category]}
+                            </span>
+                            {place.name}
+                          </span>
                           {place.nameZh && (
                             <span className="text-muted-foreground">
                               {place.nameZh}
                             </span>
                           )}
-                          <span className="text-caption text-muted-foreground">
-                            {place.time
-                              ? `${place.time}，${CATEGORY_LABEL[place.category]}`
-                              : CATEGORY_LABEL[place.category]}
-                          </span>
+                          {place.time && (
+                            <span className="text-caption text-muted-foreground">
+                              {place.time}
+                            </span>
+                          )}
                           {place.note && (
                             <span className="mt-2 text-caption whitespace-pre-line">
                               {place.note}
@@ -236,13 +355,12 @@ export function TripView({ initial }: { initial: TripWithPlaces }) {
           ))}
         </div>
       </aside>
-      <BottomCorners fade links={<LegalLinks />} className="z-20" />
     </>
   )
 }
 
-/** Height of the phone sheet at rest: the title, the dates and the first place. */
-const SHEET_LOW_PX = 260
+/** Height of the phone sheet at rest: the title, the dates, the search and the first day. */
+const SHEET_LOW_PX = 340
 
 /** True on screens wide enough for the side panel (Tailwind lg). The server renders the phone layout. */
 const WIDE = "(min-width: 1024px)"

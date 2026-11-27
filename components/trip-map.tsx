@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from "react"
 
 import type { Place } from "@/lib/types"
 
-export type Pin = Place & { label: string; color: string }
+export type Pin = Place & { emoji: string; color: string }
 export type Line = { id: string; color: string; points: [number, number][] }
 
 const LINES = "trip-lines"
@@ -104,7 +104,12 @@ export function TripMap({
     )
     map.current = m
     // The compact attribution opens on load; start it folded so it does not cover the map.
-    m.once("load", () => m.getContainer().querySelector(".maplibregl-compact-show")?.classList.remove("maplibregl-compact-show"))
+    m.once("load", () =>
+      m
+        .getContainer()
+        .querySelector(".maplibregl-compact-show")
+        ?.classList.remove("maplibregl-compact-show")
+    )
     const placed = markers.current
     return () => {
       m.remove()
@@ -150,7 +155,7 @@ export function TripMap({
         const el = document.createElement("button")
         el.type = "button"
         el.className =
-          "flex size-7 items-center justify-center border border-background text-caption text-background"
+          "flex size-8 items-center justify-center border-2 bg-background text-body"
         el.addEventListener("click", (event) => {
           event.stopPropagation()
           select.current(pin.id)
@@ -161,8 +166,8 @@ export function TripMap({
         markers.current.set(pin.id, marker)
       }
       const el = marker.getElement()
-      el.textContent = pin.label
-      el.style.background = pin.color
+      el.textContent = pin.emoji
+      el.style.borderColor = pin.color
       el.setAttribute("aria-label", pin.nameZh || pin.name)
       marker.setLngLat([pin.lng, pin.lat])
     }

@@ -12,6 +12,18 @@ export const CATEGORY_LABEL: Record<Category, string> = {
   other: "其他",
 }
 
+/** The pin on the map and the mark in the list for each category. */
+export const CATEGORY_EMOJI: Record<Category, string> = {
+  sight: "⛩️",
+  food: "🍜",
+  cafe: "☕",
+  sweets: "🍧",
+  shop: "🛍️",
+  hotel: "🏨",
+  station: "🚉",
+  other: "📍",
+}
+
 export type Place = {
   id: string
   tripId: string
