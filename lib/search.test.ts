@@ -9,6 +9,7 @@ const place: Place = {
   day: null,
   position: 0,
   time: null,
+  until: null,
   name: "マミーズ・アン・スリール 谷中店",
   nameZh: "Mammies 蘋果派",
   category: "sweets",

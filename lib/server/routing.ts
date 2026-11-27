@@ -1,4 +1,5 @@
 import { country } from "../countries"
+import { daysOf } from "../dates"
 import type { Leg, Place, Ride, TripWithPlaces } from "../types"
 import { db } from "./db"
 
@@ -7,14 +8,18 @@ import { db } from "./db"
 // ask for at most 1 request a second and a User-Agent that names the app, so
 // every answer is cached and requests to each host go out one at a time.
 
-const USER_AGENT = "trip.zyx.tw (personal trip planner; https://github.com/zyx1121/trip)"
+const USER_AGENT =
+  "trip.zyx.tw (personal trip planner; https://github.com/zyx1121/trip)"
 /** Farther than this in a straight line, a leg is planned by transit. */
 export const WALK_LIMIT_M = 1500
 const WALK_TTL = 30 * 86_400_000
 // Timetables change a few times a year; a week keeps legs fast without going stale.
 const TRANSIT_TTL = 7 * 86_400_000
 
-const g = globalThis as unknown as { tripQueues?: Map<string, Promise<unknown>>; tripLoading?: Map<string, Promise<unknown>> }
+const g = globalThis as unknown as {
+  tripQueues?: Map<string, Promise<unknown>>
+  tripLoading?: Map<string, Promise<unknown>>
+}
 const queues = (g.tripQueues ??= new Map())
 /** Answers still on their way, so a page and the background warm-up ask once. */
 const loading = (g.tripLoading ??= new Map())
@@ -27,20 +32,31 @@ function paced<T>(host: string, job: () => Promise<T>): Promise<T> {
     host,
     next.then(
       () => new Promise((r) => setTimeout(r, 1100)),
-      () => new Promise((r) => setTimeout(r, 1100)),
-    ),
+      () => new Promise((r) => setTimeout(r, 1100))
+    )
   )
   return next
 }
 
-async function cached<T>(key: string, ttl: number, load: () => Promise<T | null>): Promise<T | null> {
-  const row = db().prepare("select body, created_at from route_cache where key = ?").get(key) as { body: string; created_at: number } | undefined
+async function cached<T>(
+  key: string,
+  ttl: number,
+  load: () => Promise<T | null>
+): Promise<T | null> {
+  const row = db()
+    .prepare("select body, created_at from route_cache where key = ?")
+    .get(key) as { body: string; created_at: number } | undefined
   if (row && Date.now() - row.created_at < ttl) return JSON.parse(row.body) as T
   const pending = loading.get(key) as Promise<T | null> | undefined
   if (pending) return pending
   const job = load()
     .then((value) => {
-      if (value !== null) db().prepare("insert or replace into route_cache (key, body, created_at) values (?, ?, ?)").run(key, JSON.stringify(value), Date.now())
+      if (value !== null)
+        db()
+          .prepare(
+            "insert or replace into route_cache (key, body, created_at) values (?, ?, ?)"
+          )
+          .run(key, JSON.stringify(value), Date.now())
       return value
     })
     .finally(() => loading.delete(key))
@@ -49,49 +65,100 @@ async function cached<T>(key: string, ttl: number, load: () => Promise<T | null>
 }
 
 async function getJson(url: string): Promise<unknown> {
-  const res = await fetch(url, { headers: { "user-agent": USER_AGENT }, signal: AbortSignal.timeout(15_000) })
+  const res = await fetch(url, {
+    headers: { "user-agent": USER_AGENT },
+    signal: AbortSignal.timeout(15_000),
+  })
   if (!res.ok) throw new Error(`${new URL(url).host} answered ${res.status}`)
   return res.json()
 }
 
 /** Straight-line distance in meters. */
-export function meters(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
+export function meters(
+  a: { lat: number; lng: number },
+  b: { lat: number; lng: number }
+) {
   const rad = Math.PI / 180
-  const x = Math.sin(((b.lat - a.lat) * rad) / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(((b.lng - a.lng) * rad) / 2) ** 2
+  const x =
+    Math.sin(((b.lat - a.lat) * rad) / 2) ** 2 +
+    Math.cos(a.lat * rad) *
+      Math.cos(b.lat * rad) *
+      Math.sin(((b.lng - a.lng) * rad) / 2) ** 2
   return 2 * 6_371_000 * Math.asin(Math.sqrt(x))
 }
 
-const at = (p: { lat: number; lng: number }) => `${p.lng.toFixed(6)},${p.lat.toFixed(6)}`
+const at = (p: { lat: number; lng: number }) =>
+  `${p.lng.toFixed(6)},${p.lat.toFixed(6)}`
 
 type Walk = { minutes: number; meters: number; line: [number, number][] }
 
 export function walk(a: Place, b: Place): Promise<Walk | null> {
   return cached(`walk:${at(a)};${at(b)}`, WALK_TTL, () =>
     paced("osrm", async () => {
-      const body = (await getJson(`https://routing.openstreetmap.de/routed-foot/route/v1/driving/${at(a)};${at(b)}?overview=full&geometries=geojson`)) as {
+      const body = (await getJson(
+        `https://routing.openstreetmap.de/routed-foot/route/v1/driving/${at(a)};${at(b)}?overview=full&geometries=geojson`
+      )) as {
         code: string
-        routes?: { distance: number; duration: number; geometry: { coordinates: [number, number][] } }[]
+        routes?: {
+          distance: number
+          duration: number
+          geometry: { coordinates: [number, number][] }
+        }[]
       }
       const route = body.code === "Ok" ? body.routes?.[0] : undefined
       if (!route) return null
-      return { minutes: Math.max(1, Math.round(route.duration / 60)), meters: Math.round(route.distance), line: route.geometry.coordinates }
-    }),
+      return {
+        minutes: Math.max(1, Math.round(route.duration / 60)),
+        meters: Math.round(route.distance),
+        line: route.geometry.coordinates,
+      }
+    })
   )
 }
 
-type TransitLeg = { mode: string; duration: number; startTime: string; endTime: string; displayName?: string; routeShortName?: string; headsign?: string; from: { name: string }; to: { name: string } }
-type Itinerary = { duration: number; startTime: string; endTime: string; transfers: number; legs: TransitLeg[] }
+type TransitLeg = {
+  mode: string
+  duration: number
+  startTime: string
+  endTime: string
+  displayName?: string
+  routeShortName?: string
+  headsign?: string
+  from: { name: string }
+  to: { name: string }
+}
+type Itinerary = {
+  duration: number
+  startTime: string
+  endTime: string
+  transfers: number
+  legs: TransitLeg[]
+}
 
-export type Plan = { minutes: number; departs: string; arrives: string; transfers: number; rides: Ride[] }
+export type Plan = {
+  minutes: number
+  departs: string
+  arrives: string
+  transfers: number
+  rides: Ride[]
+}
 
 /** HH:MM of an ISO time in a time zone. */
 function clock(iso: string, timeZone: string) {
-  return new Intl.DateTimeFormat("en-GB", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(iso))
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(new Date(iso))
 }
 
 /** The UTC offset of a time zone on a day, as +09:00. */
 function offset(day: string, timeZone: string) {
-  const name = new Intl.DateTimeFormat("en-US", { timeZone, timeZoneName: "longOffset" }).formatToParts(new Date(`${day}T12:00:00Z`)).find((p) => p.type === "timeZoneName")?.value ?? "GMT"
+  const name =
+    new Intl.DateTimeFormat("en-US", { timeZone, timeZoneName: "longOffset" })
+      .formatToParts(new Date(`${day}T12:00:00Z`))
+      .find((p) => p.type === "timeZoneName")?.value ?? "GMT"
   return name === "GMT" ? "+00:00" : name.slice(3)
 }
 
@@ -102,7 +169,13 @@ function offset(day: string, timeZone: string) {
 export async function planTransit(
   a: { lat: number; lng: number },
   b: { lat: number; lng: number },
-  opts: { day: string; time: string; arriveBy: boolean; timeZone: string; count?: number },
+  opts: {
+    day: string
+    time: string
+    arriveBy: boolean
+    timeZone: string
+    count?: number
+  }
 ): Promise<Plan[]> {
   const when = `${opts.day}T${opts.time}:00${offset(opts.day, opts.timeZone)}`
   const count = opts.count ?? 3
@@ -132,35 +205,84 @@ export async function planTransit(
             headsign: l.headsign ?? "",
           })),
       }))
-    }),
+    })
   )
   return plans ?? []
 }
 
-/** When transit to `b` leaves or arrives: by b's time, else from a's time, else 10:00. */
-function timing(a: Place, b: Place) {
-  if (b.time) return { time: b.time, arriveBy: true }
-  if (a.time) return { time: a.time, arriveBy: false }
-  return { time: "10:00", arriveBy: false }
+type Stop = { place: Place; role: "start" | "stop" | "end" }
+
+/**
+ * When transit from a to b leaves or arrives: by b's time when b is a planned
+ * stop, else from a's time when a is one, else in the morning out of the stay
+ * or in the evening back to it.
+ */
+function timing(a: Stop, b: Stop) {
+  if (b.role === "stop" && b.place.time)
+    return { time: b.place.time, arriveBy: true }
+  if (a.role === "stop" && a.place.time)
+    return { time: a.place.time, arriveBy: false }
+  return { time: a.role === "start" ? "10:00" : "18:00", arriveBy: false }
 }
 
-/** The legs between consecutive places of every day. A leg that fails is left out. */
+/**
+ * The stops of a day in order: the stay slept in the night before, the
+ * day's places, then the stay slept in that night. A stay is a place with
+ * \`until\`: its day is check-in, \`until\` is check-out.
+ */
+export function dayStops(trip: TripWithPlaces, day: string): Stop[] {
+  const stays = trip.places.filter((p) => p.day && p.until)
+  const before = stays.find((s) => s.day! < day && s.until! >= day)
+  const tonight = stays.find((s) => s.day! <= day && s.until! > day)
+  const stops: Stop[] = [
+    ...(before ? [{ place: before, role: "start" as const }] : []),
+    ...trip.places
+      .filter((p) => p.day === day)
+      .sort((a, b) => a.position - b.position)
+      .map((place) => ({ place, role: "stop" as const })),
+    ...(tonight ? [{ place: tonight, role: "end" as const }] : []),
+  ]
+  // A stay that is also the day's first or last place appears once.
+  return stops.filter((s, i) => i === 0 || stops[i - 1].place.id !== s.place.id)
+}
+
+/** The legs between the stops of every day. A leg that fails is left out. */
 export async function tripLegs(trip: TripWithPlaces): Promise<Leg[]> {
   const timeZone = country(trip.country).timeZone
-  const byDay = new Map<string, Place[]>()
-  for (const p of trip.places) if (p.day) byDay.set(p.day, [...(byDay.get(p.day) ?? []), p])
   const legs: Leg[] = []
-  for (const [day, places] of byDay) {
-    for (let i = 1; i < places.length; i++) {
-      const a = places[i - 1]
-      const b = places[i]
+  for (const day of daysOf(trip.startDate, trip.endDate)) {
+    const stops = dayStops(trip, day)
+    for (let i = 1; i < stops.length; i++) {
+      const a = stops[i - 1]
+      const b = stops[i]
       try {
-        if (meters(a, b) <= WALK_LIMIT_M) {
-          const w = await walk(a, b)
-          if (w) legs.push({ from: a.id, to: b.id, mode: "walk", ...w })
+        if (meters(a.place, b.place) <= WALK_LIMIT_M) {
+          const w = await walk(a.place, b.place)
+          if (w)
+            legs.push({
+              day,
+              from: a.place.id,
+              to: b.place.id,
+              mode: "walk",
+              ...w,
+            })
         } else {
-          const [plan] = await planTransit(a, b, { day, timeZone, ...timing(a, b), count: 1 })
-          if (plan) legs.push({ from: a.id, to: b.id, mode: "transit", minutes: plan.minutes, meters: Math.round(meters(a, b)), rides: plan.rides })
+          const [plan] = await planTransit(a.place, b.place, {
+            day,
+            timeZone,
+            ...timing(a, b),
+            count: 1,
+          })
+          if (plan)
+            legs.push({
+              day,
+              from: a.place.id,
+              to: b.place.id,
+              mode: "transit",
+              minutes: plan.minutes,
+              meters: Math.round(meters(a.place, b.place)),
+              rides: plan.rides,
+            })
         }
       } catch {
         // The community server is down or slow; the page shows the places without this leg.

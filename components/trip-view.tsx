@@ -17,12 +17,7 @@ import { ThemeToggle } from "@/components/ui/theme-toggle"
 import { country } from "@/lib/countries"
 import { daysOf, formatDay, formatRange } from "@/lib/dates"
 import { matches } from "@/lib/search"
-import {
-  CATEGORY_EMOJI,
-  type Leg,
-  type Place,
-  type TripWithPlaces,
-} from "@/lib/types"
+import { CATEGORY_EMOJI, type Leg, type TripWithPlaces } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 import type { Line, Pin } from "./trip-map"
@@ -79,18 +74,20 @@ export function TripView({ initial }: { initial: TripWithPlaces }) {
     idle(() => preloadPhotos(urls))
   }, [trip.places])
 
-  const legTo = useMemo(() => new Map(legs.map((l) => [l.to, l])), [legs])
+  /** The leg that reaches a place on a day, by "day:place". */
+  const legTo = useMemo(
+    () => new Map(legs.map((l) => [`${l.day}:${l.to}`, l])),
+    [legs]
+  )
+  const nameOf = useMemo(
+    () => new Map(trip.places.map((p) => [p.id, p.nameZh || p.name])),
+    [trip.places]
+  )
 
   const days = useMemo(
     () => daysOf(trip.startDate, trip.endDate),
     [trip.startDate, trip.endDate]
   )
-  /** Each place's color: its day's, or gray while it is a candidate. */
-  const colorOf = useMemo(() => {
-    const index = new Map(days.map((d, i) => [d, i]))
-    return (p: Place) =>
-      p.day && index.has(p.day) ? dayColor(index.get(p.day)!) : CANDIDATE
-  }, [days])
 
   const filtering = query.trim() !== ""
   // Planned places by day and order, then the ones with no day yet.
@@ -98,7 +95,8 @@ export function TripView({ initial }: { initial: TripWithPlaces }) {
     () =>
       [...trip.places].sort(
         (a, b) =>
-          (a.day ?? "~").localeCompare(b.day ?? "~") || a.position - b.position
+          Number((a.day ?? "~") > (b.day ?? "~")) -
+            Number((a.day ?? "~") < (b.day ?? "~")) || a.position - b.position
       ),
     [trip.places]
   )
@@ -120,15 +118,15 @@ export function TripView({ initial }: { initial: TripWithPlaces }) {
   // Walks and rides join a day's places in order, so they hide while filtering.
   const lines = useMemo<Line[]>(() => {
     if (filtering) return []
-    const byId = new Map(trip.places.map((p) => [p.id, p]))
+    const index = new Map(days.map((d, i) => [d, i]))
     return legs
       .filter((l) => l.line)
       .map((l) => ({
-        id: `${l.from}-${l.to}`,
-        color: byId.has(l.to) ? colorOf(byId.get(l.to)!) : CANDIDATE,
+        id: `${l.day}-${l.from}-${l.to}`,
+        color: index.has(l.day) ? dayColor(index.get(l.day)!) : CANDIDATE,
         points: l.line!,
       }))
-  }, [legs, trip.places, colorOf, filtering])
+  }, [legs, days, filtering])
 
   const c = country(trip.country)
 
@@ -206,14 +204,30 @@ export function TripView({ initial }: { initial: TripWithPlaces }) {
           <ol className="mt-6 flex flex-col">
             {visible.map((place, i) => {
               const before = visible[i - 1]
+              const after = visible[i + 1]
+              // The way here: from the place above, or from the night's stay.
               const leg =
-                !filtering && before?.day && before.day === place.day
-                  ? legTo.get(place.id)
+                !filtering && place.day
+                  ? legTo.get(`${place.day}:${place.id}`)
+                  : undefined
+              // After the day's last place: the way back to the night's stay.
+              const home =
+                !filtering && place.day && after?.day !== place.day
+                  ? legs.find((l) => l.day === place.day && l.from === place.id)
                   : undefined
               const links = [...c.placeLinks(place), ...place.pages]
               return (
                 <Fragment key={place.id}>
-                  {leg && <LegRow leg={leg} />}
+                  {leg && (
+                    <LegRow
+                      leg={leg}
+                      from={
+                        before?.id === leg.from
+                          ? undefined
+                          : nameOf.get(leg.from)
+                      }
+                    />
+                  )}
                   <li
                     id={`place-${place.id}`}
                     aria-current={selected === place.id ? "true" : undefined}
@@ -304,6 +318,7 @@ export function TripView({ initial }: { initial: TripWithPlaces }) {
                       </span>
                     </span>
                   </li>
+                  {home && <LegRow leg={home} to={nameOf.get(home.to)} />}
                 </Fragment>
               )
             })}
@@ -332,17 +347,21 @@ function useWide() {
 }
 
 /** How to get from the place above to the one below: a walk, or the rides of a transit trip. */
-function LegRow({ leg }: { leg: Leg }) {
+function LegRow({ leg, from, to }: { leg: Leg; from?: string; to?: string }) {
+  // A leg out of the stay names where it starts; the leg back names where it ends.
+  const where = from ? `從 ${from} ` : to ? `回 ${to} ` : ""
   if (leg.mode === "walk") {
     return (
       <p className="ml-9 py-2 text-caption text-muted-foreground">
-        走路 {leg.minutes} 分，{leg.meters} 公尺
+        {where}走路 {leg.minutes} 分，{leg.meters} 公尺
       </p>
     )
   }
   return (
     <div className="ml-9 flex flex-col py-2 text-caption text-muted-foreground">
-      <span>交通 {leg.minutes} 分</span>
+      <span>
+        {where}交通 {leg.minutes} 分
+      </span>
       {leg.rides?.map((r, i) => (
         <span key={i} lang="ja">
           {r.departs} {r.from} 搭 {r.name} 往 {r.headsign}，{r.arrives} 到{" "}

@@ -10,6 +10,7 @@ const place: Place = {
   day: null,
   position: 0,
   time: null,
+  until: null,
   name: "ひみつ堂",
   nameZh: "祕密堂",
   category: "sweets",
