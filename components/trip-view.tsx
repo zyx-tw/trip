@@ -12,6 +12,7 @@ import {
 import { TopCorners } from "@/components/corners"
 import { FrameEdges } from "@/components/ui/frame"
 import { Input } from "@/components/ui/input"
+import { Photo, preloadPhotos } from "@/components/photo"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
 import { country } from "@/lib/countries"
 import { daysOf, formatDay, formatRange } from "@/lib/dates"
@@ -68,6 +69,15 @@ export function TripView({ initial }: { initial: TripWithPlaces }) {
       source.close()
     }
   }, [initial.id])
+
+  // Fetch every picture while the page is idle, so a row opens with its photos ready.
+  useEffect(() => {
+    const urls = trip.places.flatMap((p) => p.photos)
+    if (urls.length === 0) return
+    const idle =
+      window.requestIdleCallback ?? ((f: () => void) => setTimeout(f, 200))
+    idle(() => preloadPhotos(urls))
+  }, [trip.places])
 
   const legTo = useMemo(() => new Map(legs.map((l) => [l.to, l])), [legs])
 
@@ -238,21 +248,15 @@ export function TripView({ initial }: { initial: TripWithPlaces }) {
                         )}
                       >
                         <span className="flex min-h-0 flex-col overflow-hidden">
-                          {/* Pictures load only for the open row. */}
                           {selected === place.id && place.photos.length > 0 && (
                             // Each picture fills the row's width; swipe or scroll sideways for the next.
                             <span className="mt-3 flex snap-x snap-mandatory gap-2 overflow-x-auto">
                               {place.photos.map((src) => (
-                                // External pictures of any size; next/image would need every host listed.
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img
+                                <Photo
                                   key={src}
-                                  src={src}
-                                  alt=""
-                                  loading="lazy"
-                                  referrerPolicy="no-referrer"
+                                  url={src}
                                   className={cn(
-                                    "aspect-[3/2] shrink-0 snap-start bg-muted object-cover",
+                                    "aspect-[3/2] shrink-0 snap-start",
                                     // With more than one, the next one peeks in from the right.
                                     place.photos.length > 1
                                       ? "w-[88%]"
