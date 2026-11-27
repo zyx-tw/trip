@@ -201,6 +201,7 @@ export function TripView({ initial }: { initial: TripWithPlaces }) {
           padding={padding}
         />
       </div>
+      {/* No bottom corners here: the owner wants the map clear to the edge. */}
       <TopCorners
         trail={[{ label: "旅行", href: "/" }, { label: trip.title }]}
         nav={<ThemeToggle />}
