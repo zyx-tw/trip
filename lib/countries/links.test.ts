@@ -9,6 +9,7 @@ const place: Place = {
   tripId: "t",
   day: null,
   position: 0,
+  time: null,
   name: "ひみつ堂",
   nameZh: "祕密堂",
   category: "sweets",

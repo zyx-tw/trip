@@ -26,6 +26,7 @@ const toPlace = (r: Row): Place => ({
   tripId: String(r.trip_id),
   day: r.day == null ? null : String(r.day),
   position: Number(r.position),
+  time: r.time == null ? null : String(r.time),
   name: String(r.name),
   nameZh: String(r.name_zh),
   category: String(r.category) as Category,
@@ -62,6 +63,14 @@ function category(value: unknown): Category | undefined {
   if (value === undefined) return undefined
   if (!CATEGORIES.includes(value as Category)) throw new InputError(`category must be one of ${CATEGORIES.join(", ")}`)
   return value as Category
+}
+
+function clock(value: unknown, field: string): string | null | undefined {
+  if (value === null) return null
+  const v = text(value, field, 5)
+  if (v === undefined || v === "") return v === "" ? null : undefined
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(v)) throw new InputError(`${field} must be a time as HH:MM`)
+  return v
 }
 
 const newId = () => randomBytes(6).toString("base64url")
@@ -153,12 +162,13 @@ export function addPlaces(tripId: unknown, items: unknown): Place[] {
       const position = typeof item.position === "number" ? Math.trunc(item.position) : (last.p ?? -1) + 1
       const id = newId()
       d.prepare(
-        "insert into places (id, trip_id, day, position, name, name_zh, category, lat, lng, address, note, url, google_place_id, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "insert into places (id, trip_id, day, position, time, name, name_zh, category, lat, lng, address, note, url, google_place_id, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       ).run(
         id,
         trip.id,
         day,
         position,
+        clock(item.time, `${at}.time`) ?? null,
         name,
         text(item.name_zh, `${at}.name_zh`, 200) ?? "",
         category(item.category) ?? "other",
@@ -198,6 +208,7 @@ export function updatePlace(input: Row): Place {
   const next = {
     day,
     position: typeof input.position === "number" ? Math.trunc(input.position) : place.position,
+    time: input.time === undefined ? place.time : (clock(input.time, "time") ?? null),
     name: text(input.name, "name", 200) || place.name,
     nameZh: text(input.name_zh, "name_zh", 200) ?? place.nameZh,
     category: category(input.category) ?? place.category,
@@ -209,8 +220,8 @@ export function updatePlace(input: Row): Place {
     googlePlaceId: text(input.google_place_id, "google_place_id", 300) ?? place.googlePlaceId,
   }
   db()
-    .prepare("update places set day = ?, position = ?, name = ?, name_zh = ?, category = ?, lat = ?, lng = ?, address = ?, note = ?, url = ?, google_place_id = ?, updated_at = ? where id = ?")
-    .run(next.day, next.position, next.name, next.nameZh, next.category, next.lat, next.lng, next.address, next.note, next.url, next.googlePlaceId, Date.now(), place.id)
+    .prepare("update places set day = ?, position = ?, time = ?, name = ?, name_zh = ?, category = ?, lat = ?, lng = ?, address = ?, note = ?, url = ?, google_place_id = ?, updated_at = ? where id = ?")
+    .run(next.day, next.position, next.time, next.name, next.nameZh, next.category, next.lat, next.lng, next.address, next.note, next.url, next.googlePlaceId, Date.now(), place.id)
   emit(place.tripId)
   return requirePlace(place.id)
 }

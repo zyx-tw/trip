@@ -18,6 +18,8 @@ export type Place = {
   /** The day it is planned for, YYYY-MM-DD, or null while it is only a candidate. */
   day: string | null
   position: number
+  /** When to be there, HH:MM in the trip's time zone, or null. Transit to it arrives by then. */
+  time: string | null
   /** The name as written in the country, for example in Japanese. */
   name: string
   /** The name in Traditional Chinese, empty when it is the same. */
@@ -42,3 +44,26 @@ export type Trip = {
 }
 
 export type TripWithPlaces = Trip & { places: Place[] }
+
+/** One way to get from a place to the next one on the same day. */
+export type Leg = {
+  from: string
+  to: string
+  mode: "walk" | "transit"
+  minutes: number
+  meters: number
+  /** [lng, lat] points of a walk, for the map. */
+  line?: [number, number][]
+  /** Each ride of a transit trip, in order. */
+  rides?: Ride[]
+}
+
+export type Ride = {
+  name: string
+  from: string
+  to: string
+  /** HH:MM in the trip's time zone. */
+  departs: string
+  arrives: string
+  headsign: string
+}
