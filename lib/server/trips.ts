@@ -36,6 +36,7 @@ const toPlace = (r: Row): Place => ({
   note: String(r.note),
   url: String(r.url),
   googlePlaceId: String(r.google_place_id),
+  applePlaceId: String(r.apple_place_id),
 })
 
 function text(value: unknown, field: string, max = 500): string | undefined {
@@ -162,7 +163,7 @@ export function addPlaces(tripId: unknown, items: unknown): Place[] {
       const position = typeof item.position === "number" ? Math.trunc(item.position) : (last.p ?? -1) + 1
       const id = newId()
       d.prepare(
-        "insert into places (id, trip_id, day, position, time, name, name_zh, category, lat, lng, address, note, url, google_place_id, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "insert into places (id, trip_id, day, position, time, name, name_zh, category, lat, lng, address, note, url, google_place_id, apple_place_id, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       ).run(
         id,
         trip.id,
@@ -178,6 +179,7 @@ export function addPlaces(tripId: unknown, items: unknown): Place[] {
         text(item.note, `${at}.note`, 2000) ?? "",
         text(item.url, `${at}.url`) ?? "",
         text(item.google_place_id, `${at}.google_place_id`, 300) ?? "",
+        text(item.apple_place_id, `${at}.apple_place_id`, 300) ?? "",
         now,
         now,
       )
@@ -218,10 +220,11 @@ export function updatePlace(input: Row): Place {
     note: text(input.note, "note", 2000) ?? place.note,
     url: text(input.url, "url") ?? place.url,
     googlePlaceId: text(input.google_place_id, "google_place_id", 300) ?? place.googlePlaceId,
+    applePlaceId: text(input.apple_place_id, "apple_place_id", 300) ?? place.applePlaceId,
   }
   db()
-    .prepare("update places set day = ?, position = ?, time = ?, name = ?, name_zh = ?, category = ?, lat = ?, lng = ?, address = ?, note = ?, url = ?, google_place_id = ?, updated_at = ? where id = ?")
-    .run(next.day, next.position, next.time, next.name, next.nameZh, next.category, next.lat, next.lng, next.address, next.note, next.url, next.googlePlaceId, Date.now(), place.id)
+    .prepare("update places set day = ?, position = ?, time = ?, name = ?, name_zh = ?, category = ?, lat = ?, lng = ?, address = ?, note = ?, url = ?, google_place_id = ?, apple_place_id = ?, updated_at = ? where id = ?")
+    .run(next.day, next.position, next.time, next.name, next.nameZh, next.category, next.lat, next.lng, next.address, next.note, next.url, next.googlePlaceId, next.applePlaceId, Date.now(), place.id)
   emit(place.tripId)
   return requirePlace(place.id)
 }

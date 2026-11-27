@@ -52,9 +52,12 @@ export function TripMap({
   lines,
   selected,
   onSelect,
+  padding,
 }: {
   pins: Pin[]
   lines: Line[]
+  /** Pixels of the map hidden under the panel on each side. */
+  padding: maplibregl.PaddingOptions
   selected: string | null
   onSelect: (id: string) => void
 }) {
@@ -100,6 +103,8 @@ export function TripMap({
       "top-right"
     )
     map.current = m
+    // The compact attribution opens on load; start it folded so it does not cover the map.
+    m.once("load", () => m.getContainer().querySelector(".maplibregl-compact-show")?.classList.remove("maplibregl-compact-show"))
     const placed = markers.current
     return () => {
       m.remove()
@@ -110,6 +115,11 @@ export function TripMap({
     // The style follows the theme below; the map itself is made once.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  const paddingRef = useRef(padding)
+  useEffect(() => {
+    paddingRef.current = padding
+  }, [padding])
 
   const linesRef = useRef(lines)
   useEffect(() => {
@@ -165,7 +175,11 @@ export function TripMap({
     if (!fitted.current && pins.length > 0) {
       const bounds = new maplibregl.LngLatBounds()
       for (const p of pins) bounds.extend([p.lng, p.lat])
-      m.fitBounds(bounds, { padding: 48, maxZoom: 15, duration: 0 })
+      m.fitBounds(bounds, {
+        padding: paddingRef.current,
+        maxZoom: 15,
+        duration: 0,
+      })
       fitted.current = true
     }
   }, [pins])
@@ -191,7 +205,7 @@ export function TripMap({
       ref={box}
       role="region"
       aria-label="地圖"
-      className="relative h-[55dvh] w-full"
+      className="relative h-full w-full"
     >
       {broken && (
         <p className="flex h-full items-center justify-center bg-muted text-muted-foreground">

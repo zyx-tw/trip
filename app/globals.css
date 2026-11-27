@@ -280,3 +280,22 @@
 .dark .maplibregl-ctrl-group button .maplibregl-ctrl-icon {
   filter: invert(1);
 }
+
+/* The map fills the window; its controls stay clear of the corners and the panel. */
+.maplibregl-map .maplibregl-ctrl-top-right {
+  top: calc(var(--gutter) + 2.5rem);
+  right: calc(var(--gutter) - 10px);
+}
+.maplibregl-map .maplibregl-ctrl-bottom-right {
+  bottom: calc(var(--gutter) + 2.5rem);
+  right: calc(var(--gutter) - 10px);
+}
+@media (width < 64rem) {
+  /* The phone sheet covers the bottom: the attribution goes under the logo. */
+  .maplibregl-map .maplibregl-ctrl-bottom-right {
+    top: calc(var(--gutter) + 2.5rem);
+    bottom: auto;
+    right: auto;
+    left: calc(var(--gutter) - 10px);
+  }
+}
