@@ -13,7 +13,7 @@ const notoSansTc = Noto_Sans_TC({
 });
 
 export const metadata: Metadata = {
-  title: "Task",
+  title: "旅行",
   icons: "https://www.zyx.tw/favicon.ico",
 };
 
@@ -22,7 +22,7 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html
-      lang="en"
+      lang="zh-Hant"
       className={`dark ${notoSansTc.variable}`}
       suppressHydrationWarning
     >

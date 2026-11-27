@@ -1,0 +1,29 @@
+# trip on Docker Compose: one web container and its SQLite volume.
+#
+#   cp .env.example .env      # set TRIP_TOKEN
+#   docker compose up -d
+#
+# The web port binds to 127.0.0.1: put a reverse proxy with TLS in front.
+name: trip
+
+services:
+  web:
+    image: ghcr.io/zyx1121/trip:${TRIP_VERSION:-latest}
+    init: true
+    stop_grace_period: 3s
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - data:/data
+    ports:
+      - "${TRIP_BIND:-127.0.0.1}:${TRIP_PORT:-3000}:3000"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+      start_interval: 1s
+
+volumes:
+  data:

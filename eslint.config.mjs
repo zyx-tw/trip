@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Registry code from ui.zyx.tw, copied as is; fixes go upstream.
+    "components/ui/**",
+    // Copied from node_modules by scripts/copy-map-worker.mjs.
+    "public/maplibre/**",
   ]),
 ]);
 

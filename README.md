@@ -1,21 +1,32 @@
-# Next.js template
+# trip
 
-This is a Next.js template with shadcn/ui.
+Trip maps at trip.zyx.tw: each trip has days, each day has places in order, and every place opens in the map apps people use in that country. An agent adds, edits and removes places over MCP, and open pages update at once.
 
-## Adding components
+## Features
 
-To add components to your app, run the following command:
+- A map of the trip's places, a pin color per day, and the list of days below it
+- The official name in the country's language and a Traditional Chinese name
+- Google Maps and Apple Maps links for each place, and transit routes to it
+- MCP at `/mcp` with a bearer token: `list_trips`, `get_trip`, `save_trip`, `delete_trip`, `add_places`, `update_place`, `delete_places`
+- Sign-in through auth.zyx.tw
 
-```bash
-npx shadcn@latest add button
+## Countries
+
+Everything that changes from one country to the next sits in `lib/countries/<code>.ts`: the map apps and their links. Add a country with one file and one line in `lib/countries/index.ts`.
+
+## Development
+
+```sh
+bun install
+TRIP_OPEN_DEV=1 TRIP_TOKEN=$(openssl rand -hex 32) bun run dev
 ```
 
-This will place the ui components in the `components` directory.
+`TRIP_OPEN_DEV=1` treats every request as signed in and is refused in production.
 
-## Using components
+## Deploy
 
-To use the components in your app, import them as follows:
+ci builds the image in the pull request; a merge to main ships it to VM 117 through land (`.github/workflows/release.yml`). The stack lives in `/opt/trip` with `compose.yaml` and `.env` (see `.env.example`).
 
-```tsx
-import { Button } from "@/components/ui/button";
-```
+## Data
+
+Map tiles: OpenFreeMap, © OpenMapTiles, data © OpenStreetMap contributors.
