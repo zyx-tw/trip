@@ -11,10 +11,13 @@ const USER_AGENT = "trip.zyx.tw (personal trip planner; https://github.com/zyx11
 /** Farther than this in a straight line, a leg is planned by transit. */
 export const WALK_LIMIT_M = 1500
 const WALK_TTL = 30 * 86_400_000
-const TRANSIT_TTL = 86_400_000
+// Timetables change a few times a year; a week keeps legs fast without going stale.
+const TRANSIT_TTL = 7 * 86_400_000
 
-const g = globalThis as unknown as { tripQueues?: Map<string, Promise<unknown>> }
+const g = globalThis as unknown as { tripQueues?: Map<string, Promise<unknown>>; tripLoading?: Map<string, Promise<unknown>> }
 const queues = (g.tripQueues ??= new Map())
+/** Answers still on their way, so a page and the background warm-up ask once. */
+const loading = (g.tripLoading ??= new Map())
 
 /** Runs `job` after the previous request to the same host, at least 1.1 s apart. */
 function paced<T>(host: string, job: () => Promise<T>): Promise<T> {
@@ -33,9 +36,16 @@ function paced<T>(host: string, job: () => Promise<T>): Promise<T> {
 async function cached<T>(key: string, ttl: number, load: () => Promise<T | null>): Promise<T | null> {
   const row = db().prepare("select body, created_at from route_cache where key = ?").get(key) as { body: string; created_at: number } | undefined
   if (row && Date.now() - row.created_at < ttl) return JSON.parse(row.body) as T
-  const value = await load()
-  if (value !== null) db().prepare("insert or replace into route_cache (key, body, created_at) values (?, ?, ?)").run(key, JSON.stringify(value), Date.now())
-  return value
+  const pending = loading.get(key) as Promise<T | null> | undefined
+  if (pending) return pending
+  const job = load()
+    .then((value) => {
+      if (value !== null) db().prepare("insert or replace into route_cache (key, body, created_at) values (?, ?, ?)").run(key, JSON.stringify(value), Date.now())
+      return value
+    })
+    .finally(() => loading.delete(key))
+  loading.set(key, job)
+  return job
 }
 
 async function getJson(url: string): Promise<unknown> {

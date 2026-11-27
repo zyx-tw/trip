@@ -3,6 +3,7 @@ import { COUNTRIES } from "../countries"
 import { CATEGORIES, type Category, type Place, type Trip, type TripWithPlaces } from "../types"
 import { db } from "./db"
 import { emit } from "./events"
+import { tripLegs } from "./routing"
 
 /** A mistake in the caller's input. The message says what to fix. */
 export class InputError extends Error {}
@@ -10,6 +11,18 @@ export class InputError extends Error {}
 type Row = Record<string, unknown>
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/
+/**
+ * Tells open pages the trip changed, and works out its walks and rides in the
+ * background, so the page finds them cached instead of waiting on the routers.
+ */
+function changed(tripId: string) {
+  emit(tripId)
+  setTimeout(() => {
+    const trip = getTrip(tripId)
+    if (trip) tripLegs(trip).catch(() => {})
+  }, 0)
+}
+
 const SLUG = /^[a-z0-9][a-z0-9-]{1,47}$/
 
 const toTrip = (r: Row): Trip => ({
@@ -126,14 +139,36 @@ export function saveTrip(input: Row): Trip {
       throw error
     }
   }
-  emit(id)
+  const newId = text(input.new_id, "new_id", 48)
+  if (newId !== undefined && newId !== id) return renameTrip(id, newId)
+  changed(id)
   return requireTrip(id)
+}
+
+/** Moves a trip and its places to a new id, which is also the page address. */
+function renameTrip(id: string, newId: string): Trip {
+  if (!SLUG.test(newId)) throw new InputError("new_id must be 2 to 48 lower-case letters, digits or dashes, for example 2027-tokyo")
+  if (db().prepare("select 1 from trips where id = ?").get(newId)) throw new InputError(`a trip ${newId} already exists`)
+  const d = db()
+  d.exec("begin")
+  try {
+    d.prepare("insert into trips (id, title, country, start_date, end_date, note, created_at, updated_at) select ?, title, country, start_date, end_date, note, created_at, ? from trips where id = ?").run(newId, Date.now(), id)
+    d.prepare("update places set trip_id = ? where trip_id = ?").run(newId, id)
+    d.prepare("delete from trips where id = ?").run(id)
+    d.exec("commit")
+  } catch (error) {
+    d.exec("rollback")
+    throw error
+  }
+  changed(id)
+  changed(newId)
+  return requireTrip(newId)
 }
 
 export function deleteTrip(id: unknown) {
   const trip = requireTrip(id)
   db().prepare("delete from trips where id = ?").run(trip.id)
-  emit(trip.id)
+  changed(trip.id)
   return { deleted: trip.id }
 }
 
@@ -190,7 +225,7 @@ export function addPlaces(tripId: unknown, items: unknown): Place[] {
     d.exec("rollback")
     throw error
   }
-  emit(trip.id)
+  changed(trip.id)
   return ids.map((id) => toPlace(d.prepare("select * from places where id = ?").get(id) as Row))
 }
 
@@ -225,7 +260,7 @@ export function updatePlace(input: Row): Place {
   db()
     .prepare("update places set day = ?, position = ?, time = ?, name = ?, name_zh = ?, category = ?, lat = ?, lng = ?, address = ?, note = ?, url = ?, google_place_id = ?, apple_place_id = ?, updated_at = ? where id = ?")
     .run(next.day, next.position, next.time, next.name, next.nameZh, next.category, next.lat, next.lng, next.address, next.note, next.url, next.googlePlaceId, next.applePlaceId, Date.now(), place.id)
-  emit(place.tripId)
+  changed(place.tripId)
   return requirePlace(place.id)
 }
 
@@ -233,6 +268,6 @@ export function deletePlaces(ids: unknown) {
   if (!Array.isArray(ids) || ids.length === 0) throw new InputError("ids must be a list of place ids")
   const places = ids.map(requirePlace)
   for (const p of places) db().prepare("delete from places where id = ?").run(p.id)
-  for (const tripId of new Set(places.map((p) => p.tripId))) emit(tripId)
+  for (const tripId of new Set(places.map((p) => p.tripId))) changed(tripId)
   return { deleted: places.map((p) => p.id) }
 }
