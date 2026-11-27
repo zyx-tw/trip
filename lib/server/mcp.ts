@@ -82,6 +82,7 @@ const tools: Tool[] = [
         start_date: date("First day, YYYY-MM-DD."),
         end_date: date("Last day, YYYY-MM-DD."),
         note: str("Anything about the whole trip."),
+        new_id: str("A new id for an existing trip; its page moves to the new address and the old one stops working."),
       },
       ["id"],
     ),
