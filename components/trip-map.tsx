@@ -9,6 +9,37 @@ import { useEffect, useRef, useState } from "react"
 import type { Place } from "@/lib/types"
 
 export type Pin = Place & { label: string; color: string }
+export type Line = { id: string; color: string; points: [number, number][] }
+
+const LINES = "trip-lines"
+
+/** Puts the walks on the map, again after each style change wipes them. */
+function drawLines(m: maplibregl.Map, lines: Line[]) {
+  const data: GeoJSON.FeatureCollection = {
+    type: "FeatureCollection",
+    features: lines.map((l) => ({
+      type: "Feature",
+      properties: { color: l.color },
+      geometry: { type: "LineString", coordinates: l.points },
+    })),
+  }
+  const source = m.getSource(LINES) as maplibregl.GeoJSONSource | undefined
+  if (source) {
+    source.setData(data)
+    return
+  }
+  m.addSource(LINES, { type: "geojson", data })
+  m.addLayer({
+    id: LINES,
+    type: "line",
+    source: LINES,
+    paint: {
+      "line-color": ["get", "color"],
+      "line-width": 3,
+      "line-dasharray": [1, 1.5],
+    },
+  })
+}
 
 const STYLE = {
   dark: "https://tiles.openfreemap.org/styles/dark",
@@ -18,10 +49,12 @@ const STYLE = {
 /** The trip's places as numbered pins. Tapping a pin selects its place. */
 export function TripMap({
   pins,
+  lines,
   selected,
   onSelect,
 }: {
   pins: Pin[]
+  lines: Line[]
   selected: string | null
   onSelect: (id: string) => void
 }) {
@@ -30,7 +63,9 @@ export function TripMap({
   const markers = useRef(new Map<string, maplibregl.Marker>())
   const fitted = useRef(false)
   // Without WebGL2 there is no map; the list below still has every place and its links.
-  const [broken] = useState(() => !document.createElement("canvas").getContext("webgl2"))
+  const [broken] = useState(
+    () => !document.createElement("canvas").getContext("webgl2")
+  )
   const { resolvedTheme } = useTheme()
   const style = resolvedTheme === "light" ? STYLE.light : STYLE.dark
   const select = useRef(onSelect)
@@ -40,10 +75,30 @@ export function TripMap({
 
   useEffect(() => {
     if (!box.current || broken) return
-    maplibregl.setWorkerUrl(new URL("/maplibre/maplibre-gl-worker.mjs", location.origin).href)
-    const m = new maplibregl.Map({ container: box.current, style, center: [139.77, 35.68], zoom: 10, attributionControl: { compact: true } })
-    m.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right")
-    m.addControl(new maplibregl.GeolocateControl({ trackUserLocation: true }), "top-right")
+    maplibregl.setWorkerUrl(
+      new URL("/maplibre/maplibre-gl-worker.mjs", location.origin).href
+    )
+    const m = new maplibregl.Map({
+      container: box.current,
+      style,
+      center: [139.77, 35.68],
+      zoom: 10,
+      attributionControl: {
+        compact: true,
+        customAttribution: [
+          '<a href="https://transitous.org/sources/" target="_blank" rel="noreferrer">Transitous</a>',
+          '<a href="https://routing.openstreetmap.de/" target="_blank" rel="noreferrer">FOSSGIS OSRM</a>',
+        ],
+      },
+    })
+    m.addControl(
+      new maplibregl.NavigationControl({ showCompass: false }),
+      "top-right"
+    )
+    m.addControl(
+      new maplibregl.GeolocateControl({ trackUserLocation: true }),
+      "top-right"
+    )
     map.current = m
     const placed = markers.current
     return () => {
@@ -56,8 +111,22 @@ export function TripMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const linesRef = useRef(lines)
   useEffect(() => {
-    map.current?.setStyle(style)
+    linesRef.current = lines
+    const m = map.current
+    if (m?.isStyleLoaded()) drawLines(m, lines)
+  }, [lines])
+
+  useEffect(() => {
+    const m = map.current
+    if (!m) return
+    const redraw = () => drawLines(m, linesRef.current)
+    m.on("style.load", redraw)
+    m.setStyle(style)
+    return () => {
+      m.off("style.load", redraw)
+    }
   }, [style])
 
   useEffect(() => {
@@ -70,12 +139,15 @@ export function TripMap({
       if (!marker) {
         const el = document.createElement("button")
         el.type = "button"
-        el.className = "flex size-7 items-center justify-center border border-background text-caption text-background"
+        el.className =
+          "flex size-7 items-center justify-center border border-background text-caption text-background"
         el.addEventListener("click", (event) => {
           event.stopPropagation()
           select.current(pin.id)
         })
-        marker = new maplibregl.Marker({ element: el }).setLngLat([pin.lng, pin.lat]).addTo(m)
+        marker = new maplibregl.Marker({ element: el })
+          .setLngLat([pin.lng, pin.lat])
+          .addTo(m)
         markers.current.set(pin.id, marker)
       }
       const el = marker.getElement()
@@ -100,18 +172,32 @@ export function TripMap({
 
   useEffect(() => {
     for (const [id, marker] of markers.current) {
-      marker.getElement().style.outline = id === selected ? "2px solid var(--foreground)" : ""
+      marker.getElement().style.outline =
+        id === selected ? "2px solid var(--foreground)" : ""
       marker.getElement().style.zIndex = id === selected ? "1" : ""
     }
     const pin = pins.find((p) => p.id === selected)
-    if (pin) map.current?.flyTo({ center: [pin.lng, pin.lat], zoom: Math.max(map.current.getZoom(), 15) })
+    if (pin)
+      map.current?.flyTo({
+        center: [pin.lng, pin.lat],
+        zoom: Math.max(map.current.getZoom(), 15),
+      })
     // Fly only when the selection changes, not on every refetch.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected])
 
   return (
-    <div ref={box} role="region" aria-label="地圖" className="relative h-[55dvh] w-full">
-      {broken && <p className="flex h-full items-center justify-center bg-muted text-muted-foreground">無法顯示地圖</p>}
+    <div
+      ref={box}
+      role="region"
+      aria-label="地圖"
+      className="relative h-[55dvh] w-full"
+    >
+      {broken && (
+        <p className="flex h-full items-center justify-center bg-muted text-muted-foreground">
+          無法顯示地圖
+        </p>
+      )}
     </div>
   )
 }

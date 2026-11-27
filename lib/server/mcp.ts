@@ -1,5 +1,6 @@
 import { COUNTRIES, country } from "../countries"
 import { CATEGORIES } from "../types"
+import { planTransit } from "./routing"
 import { InputError, addPlaces, deletePlaces, deleteTrip, getTrip, listTrips, saveTrip, updatePlace } from "./trips"
 
 // MCP over streamable HTTP, without sessions or streams: each POST carries one
@@ -22,6 +23,7 @@ const placeFields = {
   lng: { type: "number", minimum: -180, maximum: 180 },
   day: { type: ["string", "null"], pattern: "^\\d{4}-\\d{2}-\\d{2}$", description: "The day it is planned for, inside the trip's dates. null or absent: a candidate with no day yet." },
   position: { type: "integer", description: "Order within its day, lower first. Default: last." },
+  time: { type: ["string", "null"], pattern: "^\\d{2}:\\d{2}$", description: "When to be there, HH:MM local time. The page plans transit to arrive by then." },
   address: str("The address in the country's language."),
   note: str("Why go, what to order, opening hours, in Traditional Chinese."),
   url: str("The official site or social account."),
@@ -34,6 +36,23 @@ function withLinks(tripId: string) {
   if (!trip) throw new InputError(`no trip "${tripId}"; list_trips shows the ids`)
   const c = country(trip.country)
   return { ...trip, places: trip.places.map((p) => ({ ...p, links: c.placeLinks(p), routes: c.routeLinks(p) })) }
+}
+
+const point = { type: "object", properties: { lat: { type: "number" }, lng: { type: "number" } }, required: ["lat", "lng"], additionalProperties: false }
+
+async function planRoute(a: Args) {
+  const from = a.from as { lat?: unknown; lng?: unknown } | undefined
+  const to = a.to as { lat?: unknown; lng?: unknown } | undefined
+  const ok = (p: typeof from): p is { lat: number; lng: number } => !!p && typeof p.lat === "number" && typeof p.lng === "number"
+  if (!ok(from) || !ok(to)) throw new InputError("from and to need lat and lng")
+  if (typeof a.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(a.date)) throw new InputError("date must be YYYY-MM-DD")
+  const time = typeof a.time === "string" && /^\d{2}:\d{2}$/.test(a.time) ? a.time : "09:00"
+  const timeZone = country(typeof a.country === "string" ? a.country : "jp").timeZone
+  try {
+    return await planTransit(from, to, { day: a.date, time, arriveBy: a.arrive_by === true, timeZone, count: 5 })
+  } catch (error) {
+    throw new InputError(`the timetable service failed: ${(error as Error).message}. Try again in a minute.`)
+  }
 }
 
 const tools: Tool[] = [
@@ -96,6 +115,24 @@ const tools: Tool[] = [
     run: (a) => updatePlace(a),
   },
   {
+    name: "plan_route",
+    description:
+      "Trains and buses from one point to another on a date, from the Transitous timetable: up to 5 trips with each ride's name (for example あさま605号), stations and times in local time. Use it to pick a train, then write the choice in a place's note or time. Times are timetable data, not live.",
+    inputSchema: object(
+      {
+        from: point,
+        to: point,
+        date: date("The travel date, YYYY-MM-DD."),
+        time: str("HH:MM local time. Default 09:00."),
+        arrive_by: { type: "boolean", description: "true: arrive by time. false (default): leave from time on." },
+        country: { type: "string", enum: Object.keys(COUNTRIES), description: "Sets the time zone. Default jp." },
+      },
+      ["from", "to", "date"],
+    ),
+    annotations: { readOnlyHint: true },
+    run: planRoute,
+  },
+  {
     name: "delete_places",
     description: "Delete places by id.",
     inputSchema: object({ ids: { type: "array", minItems: 1, items: { type: "string" } } }, ["ids"]),
@@ -136,7 +173,7 @@ export async function handleMcp(req: Request): Promise<Response> {
     const tool = tools.find((t) => t.name === params.name)
     if (!tool) return fail(id, -32602, `unknown tool ${String(params.name)}`)
     try {
-      const result = tool.run((params.arguments ?? {}) as Args)
+      const result = await tool.run((params.arguments ?? {}) as Args)
       return answer(id, { content: [{ type: "text", text: JSON.stringify(result) }] })
     } catch (error) {
       if (!(error instanceof InputError)) throw error

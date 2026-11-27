@@ -10,6 +10,8 @@ export type MapLink = { label: string; url: string }
 export type Country = {
   code: string
   name: string
+  /** IANA time zone the trip's times are written in. */
+  timeZone: string
   /** Map apps that open this place, most used there first. */
   placeLinks: (place: Place) => MapLink[]
   /** Map apps that route to this place by public transport. */
