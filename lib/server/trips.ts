@@ -64,14 +64,15 @@ function photos(value: unknown, field: string): string | undefined {
   return JSON.stringify(value)
 }
 
-/** Up to 6 labelled https pages, stored as JSON. */
+/** Up to 6 labelled pages, stored as JSON. */
 function pages(value: unknown, field: string): string | undefined {
   if (value === undefined) return undefined
   if (!Array.isArray(value) || value.length > 6) throw new InputError(`${field} must be a list of at most 6 pages`)
   const out = value.map((v, i) => {
     const label = text(v?.label, `${field}[${i}].label`, 20)
     const url = text(v?.url, `${field}[${i}].url`, 1000)
-    if (!label || !url?.startsWith("https://")) throw new InputError(`${field}[${i}] needs a label and an https url`)
+    // A link only opens a page, so an http-only shop site is allowed here, unlike photos.
+    if (!label || !/^https?:\/\//.test(url ?? "")) throw new InputError(`${field}[${i}] needs a label and an http or https url`)
     return { label, url }
   })
   return JSON.stringify(out)
