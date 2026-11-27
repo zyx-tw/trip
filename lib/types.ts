@@ -12,11 +12,11 @@ export const CATEGORY_LABEL: Record<Category, string> = {
   other: "其他",
 }
 
-/** The pin on the map and the mark in the list for each category. */
+/** The pin on the map and the mark in the list for each category. U+FE0F asks for the emoji, not the text glyph. */
 export const CATEGORY_EMOJI: Record<Category, string> = {
   sight: "⛩️",
   food: "🍜",
-  cafe: "☕",
+  cafe: "\u2615\ufe0f",
   sweets: "🍧",
   shop: "🛍️",
   hotel: "🏨",

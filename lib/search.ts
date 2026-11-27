@@ -19,10 +19,10 @@ function inOrder(needle: string, hay: string) {
 
 /**
  * Loose search: every word of the query must appear in the place's names,
- * address, note or category, or its letters in order in one of the names,
- * so a typo or a skipped letter still finds the place.
+ * address, note, category or `extra` (such as the day), or its letters in
+ * order in one of the names, so a skipped letter still finds the place.
  */
-export function matches(place: Place, query: string) {
+export function matches(place: Place, query: string, extra = "") {
   const words = fold(query).split(/\s+/).filter(Boolean)
   if (words.length === 0) return true
   const names = [fold(place.name), fold(place.nameZh)]
@@ -31,6 +31,7 @@ export function matches(place: Place, query: string) {
     fold(place.address),
     fold(place.note),
     CATEGORY_LABEL[place.category],
+    fold(extra),
   ].join(" ")
   return words.every(
     (w) => all.includes(w) || (w.length > 1 && names.some((n) => inOrder(w, n)))
