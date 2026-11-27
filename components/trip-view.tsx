@@ -46,7 +46,7 @@ export function TripView({ initial }: { initial: TripWithPlaces }) {
   }, [trip])
 
   const pins = useMemo<Pin[]>(
-    () => groups.flatMap((g) => g.places.map((p, i) => ({ ...p, label: g.day ? String(i + 1) : "·", color: g.color }))),
+    () => groups.flatMap((g) => g.places.map((p, i) => ({ ...p, label: g.day ? String(i + 1) : "", color: g.color }))),
     [groups],
   )
 
@@ -76,7 +76,7 @@ export function TripView({ initial }: { initial: TripWithPlaces }) {
                 onClick={() => setSelected(place.id)}
               >
                 <div className="flex w-full cursor-pointer gap-4">
-                  <span className="w-6 shrink-0 text-muted-foreground">{group.day ? i + 1 : "·"}</span>
+                  <span className="w-6 shrink-0 text-muted-foreground">{group.day ? i + 1 : ""}</span>
                   <span className="flex min-w-0 flex-col">
                     <span lang="ja">{place.name}</span>
                     {place.nameZh && <span className="text-muted-foreground">{place.nameZh}</span>}

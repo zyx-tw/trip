@@ -53,7 +53,7 @@ const tools: Tool[] = [
   },
   {
     name: "save_trip",
-    description: `Create a trip, or change the fields given on an existing one. A new trip needs every field but note. Countries: ${Object.keys(COUNTRIES).join(", ")}.`,
+    description: `Create a trip, or change the fields given on an existing one. A new trip needs every field but note. Shortening the dates moves places on dropped days back to the candidates. Countries: ${Object.keys(COUNTRIES).join(", ")}.`,
     inputSchema: object(
       {
         id: str("Lower-case letters, digits and dashes; it becomes the page address, for example 2027-tokyo."),

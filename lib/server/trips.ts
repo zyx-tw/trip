@@ -104,7 +104,17 @@ export function saveTrip(input: Row): Trip {
     const t = toTrip(existing)
     const next = { title: title || t.title, country: country ?? t.country, startDate: startDate ?? t.startDate, endDate: endDate ?? t.endDate, note: note ?? t.note }
     if (next.endDate < next.startDate) throw new InputError("end_date is before start_date")
-    db().prepare("update trips set title = ?, country = ?, start_date = ?, end_date = ?, note = ?, updated_at = ? where id = ?").run(next.title, next.country, next.startDate, next.endDate, next.note, now, id)
+    const d = db()
+    d.exec("begin")
+    try {
+      d.prepare("update trips set title = ?, country = ?, start_date = ?, end_date = ?, note = ?, updated_at = ? where id = ?").run(next.title, next.country, next.startDate, next.endDate, next.note, now, id)
+      // Places on days the trip no longer has go back to the candidates, so none disappear.
+      d.prepare("update places set day = null, updated_at = ? where trip_id = ? and (day < ? or day > ?)").run(now, id, next.startDate, next.endDate)
+      d.exec("commit")
+    } catch (error) {
+      d.exec("rollback")
+      throw error
+    }
   }
   emit(id)
   return requireTrip(id)
