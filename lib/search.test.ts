@@ -19,6 +19,7 @@ const place: Place = {
   url: "",
   googlePlaceId: "",
   applePlaceId: "",
+  photos: [],
 }
 
 test("finds by name, kana, category and address", () => {

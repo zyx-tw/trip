@@ -45,6 +45,7 @@ const STEPS = [
   `alter table places add column time text;
    create table route_cache (key text primary key, body text not null, created_at integer not null);`,
   `alter table places add column apple_place_id text not null default '';`,
+  `alter table places add column photos text not null default '[]';`,
 ]
 
 const globalDb = globalThis as unknown as { tripDb?: DatabaseSync }

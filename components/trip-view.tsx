@@ -10,6 +10,7 @@ import {
 } from "react"
 
 import { TopCorners } from "@/components/corners"
+import { FrameEdges } from "@/components/ui/frame"
 import { Input } from "@/components/ui/input"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
 import { country } from "@/lib/countries"
@@ -152,14 +153,16 @@ export function TripView({ initial }: { initial: TripWithPlaces }) {
       <aside
         aria-label="行程"
         className={cn(
-          "fixed z-10 flex flex-col border border-muted-foreground bg-background/70 backdrop-blur-md motion-safe:transition-[height] motion-safe:duration-300",
+          "fixed z-10 flex flex-col border-muted-foreground bg-background/70 backdrop-blur-md motion-safe:transition-[height] motion-safe:duration-300",
           // Phone: a sheet along the bottom. Wide screens: a panel on the left.
-          "inset-x-0 bottom-0 border-x-0 border-b-0",
+          "inset-x-0 bottom-0 border-t",
           open ? "h-[85dvh]" : "h-(--sheet-low)",
-          "lg:top-[calc(var(--gutter)+2.5rem)] lg:bottom-(--gutter) lg:left-(--gutter) lg:h-auto lg:w-100 lg:border-x lg:border-b"
+          "lg:top-[calc(var(--gutter)+2.5rem)] lg:bottom-(--gutter) lg:left-(--gutter) lg:h-auto lg:w-100 lg:border-t-0"
         )}
         style={{ "--sheet-low": `${SHEET_LOW_PX}px` } as React.CSSProperties}
       >
+        {/* On wide screens the panel is framed like the search box. */}
+        <FrameEdges className="max-lg:hidden" />
         <button
           type="button"
           aria-expanded={open}
@@ -198,17 +201,21 @@ export function TripView({ initial }: { initial: TripWithPlaces }) {
                   {leg && <LegRow leg={leg} />}
                   <li
                     id={`place-${place.id}`}
+                    aria-current={selected === place.id ? "true" : undefined}
                     className={cn(
-                      "flex cursor-pointer scroll-mt-24 gap-3 border-t border-border py-4",
-                      selected === place.id && "bg-muted/70"
+                      // The row's color runs to the panel's edges.
+                      "-mx-5 flex cursor-pointer scroll-mt-24 gap-3 border-t border-border px-5 py-4 hover:bg-muted/40",
+                      selected === place.id && "bg-muted/70 hover:bg-muted/70"
                     )}
-                    // Tapping the row shows the place on the map; the links below work on their own.
-                    onClick={() => setSelected(place.id)}
+                    // Tapping a row opens it and shows the place; tapping it again closes it.
+                    onClick={() =>
+                      setSelected((v) => (v === place.id ? null : place.id))
+                    }
                   >
                     <span aria-hidden className="w-6 shrink-0">
                       {CATEGORY_EMOJI[place.category]}
                     </span>
-                    <span className="flex min-w-0 flex-col">
+                    <span className="flex min-w-0 flex-1 flex-col">
                       <span lang="ja">{place.name}</span>
                       {place.nameZh && (
                         <span className="text-muted-foreground">
@@ -222,26 +229,63 @@ export function TripView({ initial }: { initial: TripWithPlaces }) {
                             .join(" ")}
                         </span>
                       )}
-                      {place.note && (
-                        <span className="mt-2 text-caption whitespace-pre-line">
-                          {place.note}
-                        </span>
-                      )}
-                      {links.length > 0 && (
-                        <span className="mt-1 flex flex-wrap gap-x-4 text-caption">
-                          {links.map((link) => (
-                            <a
-                              key={link.label}
-                              href={link.url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="py-2 text-muted-foreground hover:text-foreground"
+                      <span
+                        className={cn(
+                          "grid motion-safe:transition-[grid-template-rows] motion-safe:duration-300",
+                          selected === place.id
+                            ? "grid-rows-[1fr]"
+                            : "grid-rows-[0fr]"
+                        )}
+                      >
+                        <span className="flex min-h-0 flex-col overflow-hidden">
+                          {/* Pictures load only for the open row. */}
+                          {selected === place.id && place.photos.length > 0 && (
+                            <span className="mt-3 flex gap-2 overflow-x-auto">
+                              {place.photos.map((src) => (
+                                // External pictures of any size; next/image would need every host listed.
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  key={src}
+                                  src={src}
+                                  alt=""
+                                  loading="lazy"
+                                  referrerPolicy="no-referrer"
+                                  className="h-32 w-auto shrink-0 bg-muted object-cover"
+                                />
+                              ))}
+                            </span>
+                          )}
+                          {place.note && (
+                            <span className="mt-3 text-caption whitespace-pre-line">
+                              {place.note}
+                            </span>
+                          )}
+                          {place.address && (
+                            <span
+                              lang="ja"
+                              className="mt-2 text-caption text-muted-foreground"
                             >
-                              {link.label}
-                            </a>
-                          ))}
+                              {place.address}
+                            </span>
+                          )}
+                          {links.length > 0 && (
+                            <span className="mt-1 flex flex-wrap gap-x-4 text-caption">
+                              {links.map((link) => (
+                                <a
+                                  key={link.label}
+                                  href={link.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="py-2 text-muted-foreground hover:text-foreground"
+                                >
+                                  {link.label}
+                                </a>
+                              ))}
+                            </span>
+                          )}
                         </span>
-                      )}
+                      </span>
                     </span>
                   </li>
                 </Fragment>
