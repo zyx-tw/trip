@@ -32,7 +32,7 @@ const placeFields = {
   pages: {
     type: "array",
     maxItems: 6,
-    items: { type: "object", properties: { label: { type: "string", description: "Short: 官網, Instagram, X, 食べログ." }, url: { type: "string" } }, required: ["label", "url"], additionalProperties: false },
+    items: { type: "object", properties: { label: { type: "string", description: "Short: 官網, Instagram, X, 食べログ." }, url: { type: "string", description: "http or https." } }, required: ["label", "url"], additionalProperties: false },
     description: "Other pages about the place, shown as links after the map apps. Replaces the list.",
   },
   apple_place_id: str("The Apple Maps place id (the place-id in a maps.apple.com/place link, I...). The page links to its Apple business page only when this is set."),
