@@ -117,7 +117,7 @@ export function PlaceCarousel({
         timer.current = setTimeout(settle, SETTLE_MS)
       }}
       className={cn(
-        "pointer-events-none relative flex snap-x snap-mandatory items-end gap-2 overflow-x-auto overscroll-x-contain [scrollbar-width:none]",
+        "relative flex snap-x snap-mandatory items-end gap-2 overflow-x-auto overscroll-x-contain [scrollbar-width:none]",
         "px-[calc(var(--gutter)+0.5rem)]"
       )}
     >
@@ -137,7 +137,9 @@ export function PlaceCarousel({
                   : { height: CARD_PX }
               }
               className={cn(
-                "pointer-events-auto flex w-[calc(100%-2*var(--gutter)-1rem)] shrink-0 cursor-pointer snap-center flex-col overflow-y-auto border border-border bg-background/80 p-4 backdrop-blur-md",
+                "flex w-[calc(100%-2*var(--gutter)-1rem)] shrink-0 cursor-pointer snap-center flex-col overflow-hidden border border-border bg-background/80 p-4 backdrop-blur-md",
+                // Only a pulled-up card scrolls on its own; a closed one leaves every swipe to the row.
+                here && open && "overflow-y-auto",
                 "[interpolate-size:allow-keywords] motion-safe:transition-[height] motion-safe:duration-300"
               )}
             >
