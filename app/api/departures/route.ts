@@ -4,7 +4,7 @@ import { Busy, departuresFrom } from "@/lib/server/routing"
 
 /**
  * The next departures from a station, with each line's status:
- * /api/departures?at=lat,lng&name=東京[&country=jp]. The name is the station's
+ * /api/departures?at=lat,lng&name=<station>[&country=jp]. The name is the station's
  * name from /api/stations; it keeps out the platforms of other stations nearby.
  */
 export async function GET(req: Request) {
