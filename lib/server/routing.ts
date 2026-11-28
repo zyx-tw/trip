@@ -1,6 +1,7 @@
 import { country } from "../countries"
 import { daysOf } from "../dates"
 import type { Leg, Place, Ride, TripWithPlaces } from "../types"
+import { type Alert, alertFor } from "./alerts"
 import { db } from "./db"
 
 // Routes between consecutive places of a day. Walks come from the FOSSGIS OSRM
@@ -140,6 +141,7 @@ export function walk(a: { lat: number; lng: number }, b: { lat: number; lng: num
 
 type TransitLeg = {
   mode: string
+  routeId?: string
   routeColor?: string
   legGeometry?: { points: string; precision: number }
   duration: number
@@ -354,11 +356,20 @@ export type Segment = {
   departs: string
   arrives: string
   line: [number, number][]
+  /** The ride's line status now, such as a delay; null when all is normal or unknown. */
+  alert: Alert | null
 }
+
+/** One way to ride there. */
+export type Trip = { minutes: number; departs: string; arrives: string; transfers: number; segments: Segment[] }
 
 export type Route =
   | { mode: "walk"; minutes: number; meters: number; line: [number, number][] }
-  | { mode: "transit"; minutes: number; departs: string; arrives: string; transfers: number; segments: Segment[] }
+  /** The first trip's fields, then every trip found, the first one included. */
+  | ({ mode: "transit"; trips: Trip[] } & Trip)
+
+/** How many trips a route offers. */
+const TRIPS = 5
 
 /**
  * How to get from a to b leaving at a time: a walk when it is short, else the
@@ -378,28 +389,33 @@ export async function routeBetween(
     return w ? { mode: "walk" as const, ...w } : null
   }
   // Trip pages and MCP share these queues; a map client waits at most a few jobs.
-  const host = meters(a, b) <= WALK_LIMIT_M ? "osrm" : "transitous"
-  if ((waiting.get(host) ?? 0) >= ROUTE_QUEUE_MAX) throw new Busy(`${host} is busy`)
-  if (host === "osrm") return asWalk()
+  const busy = (host: string) => {
+    if ((waiting.get(host) ?? 0) >= ROUTE_QUEUE_MAX) throw new Busy(`${host} is busy`)
+  }
+  if (meters(a, b) <= WALK_LIMIT_M) {
+    busy("osrm")
+    return asWalk()
+  }
   const when = `${opts.day}T${opts.time}:00${offset(opts.day, opts.timeZone)}`
-  const transit = await cached(`route:${at(a)};${at(b)};${when}`, TRANSIT_TTL, () =>
-    paced("transitous", async () => {
+  // Without alerts: they change by the minute and are added after the cache.
+  const trips = await cached(`trips:${at(a)};${at(b)};${when};${TRIPS}`, TRANSIT_TTL, () => {
+    // Only a fetch waits in the queue; a cached or in-flight route never gets busy.
+    busy("transitous")
+    return paced("transitous", async () => {
       const url = new URL("https://api.transitous.org/api/v5/plan")
       url.searchParams.set("fromPlace", `${a.lat},${a.lng}`)
       url.searchParams.set("toPlace", `${b.lat},${b.lng}`)
       url.searchParams.set("time", when)
-      url.searchParams.set("numItineraries", "1")
+      url.searchParams.set("numItineraries", String(TRIPS))
       const body = (await getJson(url.href)) as { itineraries?: Itinerary[] }
-      const it = body.itineraries?.[0]
-      if (!it) return null
-      return {
-        mode: "transit" as const,
+      const found = (body.itineraries ?? []).slice(0, TRIPS).map((it) => ({
         minutes: Math.round(it.duration / 60),
         departs: clock(it.startTime, opts.timeZone),
         arrives: clock(it.endTime, opts.timeZone),
         transfers: it.transfers,
         segments: it.legs.map((l) => ({
           mode: l.mode,
+          routeId: l.routeId ?? "",
           name: l.mode === "WALK" ? "" : l.displayName || l.routeShortName || l.mode,
           color: l.routeColor ? `#${l.routeColor}` : "",
           from: l.from.name,
@@ -408,11 +424,109 @@ export async function routeBetween(
           arrives: clock(l.endTime, opts.timeZone),
           line: l.legGeometry ? decodePolyline(l.legGeometry.points, l.legGeometry.precision) : [],
         })),
-      }
+      }))
+      return found.length ? found : null
     })
-  )
+  })
+  const transit = trips && (await withAlerts(trips))
+  if (transit) return { mode: "transit", ...transit[0], trips: transit }
   // Transitous drops transit slower than walking, so no trip can still mean a walk.
-  if (transit || meters(a, b) > WALK_FALLBACK_M) return transit
-  if ((waiting.get("osrm") ?? 0) >= ROUTE_QUEUE_MAX) throw new Busy("osrm is busy")
+  if (meters(a, b) > WALK_FALLBACK_M) return null
+  busy("osrm")
   return asWalk()
+}
+
+type CachedTrip = Omit<Trip, "segments"> & { segments: (Omit<Segment, "alert"> & { routeId: string })[] }
+
+/** Adds each ride's line status now, and drops the route ids the client has no use for. */
+async function withAlerts(trips: CachedTrip[]): Promise<Trip[]> {
+  return Promise.all(
+    trips.map(async (t) => ({
+      ...t,
+      segments: await Promise.all(t.segments.map(async ({ routeId, ...s }) => ({ ...s, alert: await alertFor(routeId) }))),
+    }))
+  )
+}
+
+/** One train or bus leaving a station. */
+export type Departure = {
+  /** HH:MM, the expected time when the timetable has live data, else the planned one. */
+  time: string
+  /** HH:MM as planned. */
+  planned: string
+  /** Minutes late from live data; null when there is none. */
+  delay: number | null
+  mode: string
+  /** The line's short name, such as JY or のぞみ3号. */
+  line: string
+  /** #rrggbb, empty when the timetable gives none. */
+  color: string
+  headsign: string
+  /** The platform, empty when unknown. */
+  track: string
+  alert: Alert | null
+}
+
+type StopTime = {
+  place: { name: string; departure?: string; scheduledDeparture?: string; track?: string }
+  mode: string
+  realTime: boolean
+  headsign: string
+  routeId?: string
+  routeColor?: string
+  routeShortName?: string
+  displayName?: string
+  cancelled?: boolean
+}
+
+/** How long a station's departures are reused. */
+const DEPARTURES_TTL = 60_000
+/** How far from the station's marker its platforms may be. */
+const STATION_RADIUS_M = 300
+/** How many departures one station shows. */
+const DEPARTURES = 40
+
+/**
+ * The next departures from the station named `name` at `p`. Platforms of other
+ * stations nearby are left out by name, unless no platform carries the name.
+ */
+export async function departuresFrom(p: { lat: number; lng: number }, name: string, timeZone: string): Promise<Departure[]> {
+  p = { lat: +p.lat.toFixed(6), lng: +p.lng.toFixed(6) }
+  const minute = Math.floor(Date.now() / 60_000)
+  const rows = await cached(`departures:${at(p)};${name};${minute}`, DEPARTURES_TTL, () => {
+    if ((waiting.get("transitous") ?? 0) >= ROUTE_QUEUE_MAX) throw new Busy("transitous is busy")
+    return paced("transitous", async () => {
+      const url = new URL("https://api.transitous.org/api/v5/stoptimes")
+      url.searchParams.set("center", `${p.lat},${p.lng}`)
+      url.searchParams.set("radius", String(STATION_RADIUS_M))
+      url.searchParams.set("n", String(DEPARTURES * 2))
+      const body = (await getJson(url.href)) as { stopTimes?: StopTime[] }
+      return body.stopTimes ?? []
+    })
+  })
+  const all = (rows ?? []).filter((s) => !s.cancelled && s.place.departure)
+  const named = all.filter((s) => s.place.name === name || s.place.name.startsWith(`${name} `))
+  const seen = new Set<string>()
+  const out: Departure[] = []
+  for (const s of named.length ? named : all) {
+    const line = s.displayName || s.routeShortName || s.mode
+    // Two feeds can carry the same train.
+    const key = `${s.place.departure}|${line}|${s.headsign}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    const planned = s.place.scheduledDeparture ?? s.place.departure!
+    out.push({
+      time: clock(s.place.departure!, timeZone),
+      planned: clock(planned, timeZone),
+      delay: s.realTime ? Math.round((Date.parse(s.place.departure!) - Date.parse(planned)) / 60_000) : null,
+      mode: s.mode,
+      line,
+      color: s.routeColor ? `#${s.routeColor}` : "",
+      headsign: s.headsign,
+      track: s.place.track ?? "",
+      alert: await alertFor(s.routeId),
+    })
+    if (out.length === DEPARTURES) break
+  }
+  return out
 }

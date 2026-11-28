@@ -1,6 +1,6 @@
 import { COUNTRIES, country } from "../countries"
 import { CATEGORIES } from "../types"
-import { meters, planTransit } from "./routing"
+import { departuresFrom, meters, planTransit } from "./routing"
 import { TooWide, stationsIn } from "./stations"
 import { InputError, addPlaces, deletePlaces, deleteTrip, getTrip, listTrips, saveTrip, updatePlace } from "./trips"
 
@@ -60,6 +60,18 @@ async function planRoute(a: Args) {
   const timeZone = country(typeof a.country === "string" ? a.country : "jp").timeZone
   try {
     return await planTransit(from, to, { day: a.date, time, arriveBy: a.arrive_by === true, timeZone, count: 5 })
+  } catch (error) {
+    throw new InputError(`the timetable service failed: ${(error as Error).message}. Try again in a minute.`)
+  }
+}
+
+async function stationDepartures(a: Args) {
+  const { lat, lng, name } = a as { lat?: unknown; lng?: unknown; name?: unknown }
+  if (typeof lat !== "number" || typeof lng !== "number" || !(Math.abs(lat) <= 90) || !(Math.abs(lng) <= 180))
+    throw new InputError("lat must be within ±90 and lng within ±180")
+  if (typeof name !== "string" || !name.trim()) throw new InputError("name is the station's name")
+  try {
+    return { departures: await departuresFrom({ lat, lng }, name.trim(), country("jp").timeZone) }
   } catch (error) {
     throw new InputError(`the timetable service failed: ${(error as Error).message}. Try again in a minute.`)
   }
@@ -175,6 +187,21 @@ const tools: Tool[] = [
     ),
     annotations: { readOnlyHint: true },
     run: findStations,
+  },
+  {
+    name: "station_departures",
+    description:
+      "The next trains leaving a station, leaving now: time, line, where it goes, platform, and the line's status (遅延, 運転見合わせ) when it has one. Take the station's name and position from find_stations.",
+    inputSchema: object(
+      {
+        name: str("The station's name as find_stations gives it, for example 東京."),
+        lat: { type: "number", minimum: -90, maximum: 90 },
+        lng: { type: "number", minimum: -180, maximum: 180 },
+      },
+      ["name", "lat", "lng"],
+    ),
+    annotations: { readOnlyHint: true },
+    run: stationDepartures,
   },
   {
     name: "delete_places",

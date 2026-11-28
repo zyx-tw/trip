@@ -9,7 +9,7 @@ Trip maps at trip.zyx.tw: each trip has days, each day has places in order, and 
 - Google Maps and Apple Maps links for each place, and transit routes to it
 - Between the places of a day: the walk (time, distance, the path on the map) or, past 1.5 km, the train or bus to take
 - MCP at `/mcp` with a bearer token: `list_trips`, `get_trip`, `save_trip`, `delete_trip`, `add_places`, `update_place`, `delete_places`, `plan_route`, `find_stations`
-- An API for apps, with the MCP token or a read-only one (`TRIP_READ_TOKEN`): `/api/trips/<id>`, `/api/photo`, `/api/stations?bbox=` (stations and their numbered exits) and `/api/route?from=&to=` (a walk, or a transit trip with the path of each part)
+- An API for apps, with the MCP token or a read-only one (`TRIP_READ_TOKEN`): `/api/trips/<id>`, `/api/photo`, `/api/stations?bbox=` (stations and their numbered exits), `/api/route?from=&to=` (a walk, or the next 5 transit trips with the path of each part and each line's status) and `/api/departures?at=&name=` (the next trains from a station)
 - Sign-in through auth.zyx.tw
 
 ## Countries
@@ -34,6 +34,7 @@ ci builds the image in the pull request; a merge to main ships it to VM 117 thro
 - Map tiles: OpenFreeMap, © OpenMapTiles, data © OpenStreetMap contributors.
 - Walks: the FOSSGIS OSRM foot server (routing.openstreetmap.de), at most 1 request a second, cached for 30 days.
 - Stations and exits: OpenStreetMap, built into `lib/data/stations-jp.json` by `scripts/build-stations.ts` (steps in its header). Data © OpenStreetMap contributors, ODbL.
+- Tokyo rail line status: ODPT train information, as the GTFS-Realtime alerts feed by mkuran.pl that Transitous also reads.
 - Timetables: Transitous (transitous.org, sources at transitous.org/sources), at most 1 request a second, cached for a day. Times are timetable data, not live.
 
 Both are community services: lib/server/routing.ts names this app in its User-Agent and queues requests to each host.
