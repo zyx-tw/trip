@@ -12,6 +12,11 @@ export type Config = {
   /** The bearer token for MCP clients. MCP is off when unset. */
   token: string | null
   /**
+   * A second bearer token that only reads: trips, photos, stations and routes.
+   * For apps that keep a token on a phone, where the MCP token would be too much.
+   */
+  readToken: string | null
+  /**
    * Development only: every request counts as signed in. Refused when
    * NODE_ENV is production, so a stray env var cannot open the real site.
    */
@@ -24,6 +29,9 @@ export function config(env: Record<string, string | undefined> = process.env): C
   if (cached) return cached
   const token = env.TRIP_TOKEN?.trim() || null
   if (token && token.length < 32) throw new Error("TRIP_TOKEN must be at least 32 characters")
+  const readToken = env.TRIP_READ_TOKEN?.trim() || null
+  if (readToken && readToken.length < 32) throw new Error("TRIP_READ_TOKEN must be at least 32 characters")
+  if (readToken && readToken === token) throw new Error("TRIP_READ_TOKEN must differ from TRIP_TOKEN")
   const openDev = env.TRIP_OPEN_DEV === "1"
   if (openDev && env.NODE_ENV === "production") throw new Error("TRIP_OPEN_DEV is for development only")
   cached = {
@@ -32,6 +40,7 @@ export function config(env: Record<string, string | undefined> = process.env): C
     authOrigin: env.TRIP_AUTH_ORIGIN ?? "https://auth.zyx.tw",
     authKey: authKey as JWK,
     token,
+    readToken,
     openDev,
   }
   return cached

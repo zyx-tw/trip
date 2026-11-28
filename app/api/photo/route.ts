@@ -1,9 +1,9 @@
-import { hasToken, signedIn } from "@/lib/server/auth"
+import { canRead } from "@/lib/server/auth"
 import { photo, type Width, WIDTHS } from "@/lib/server/photos"
 
 /** A place's photo, resized: /api/photo?u=<address>&w=24 or 800. */
 export async function GET(req: Request) {
-  if (!hasToken(req) && !(await signedIn(req.headers.get("cookie"))))
+  if (!(await canRead(req)))
     return new Response(null, { status: 401 })
   const params = new URL(req.url).searchParams
   const url = params.get("u") ?? ""

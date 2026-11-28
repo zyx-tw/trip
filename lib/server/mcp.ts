@@ -1,6 +1,7 @@
 import { COUNTRIES, country } from "../countries"
 import { CATEGORIES } from "../types"
-import { planTransit } from "./routing"
+import { meters, planTransit } from "./routing"
+import { TooWide, stationsIn } from "./stations"
 import { InputError, addPlaces, deletePlaces, deleteTrip, getTrip, listTrips, saveTrip, updatePlace } from "./trips"
 
 // MCP over streamable HTTP, without sessions or streams: each POST carries one
@@ -61,6 +62,24 @@ async function planRoute(a: Args) {
     return await planTransit(from, to, { day: a.date, time, arriveBy: a.arrive_by === true, timeZone, count: 5 })
   } catch (error) {
     throw new InputError(`the timetable service failed: ${(error as Error).message}. Try again in a minute.`)
+  }
+}
+
+function findStations(a: Args) {
+  const { lat, lng } = a as { lat?: unknown; lng?: unknown }
+  if (typeof lat !== "number" || typeof lng !== "number" || !(Math.abs(lat) <= 85) || !(Math.abs(lng) <= 180))
+    throw new InputError("lat must be within ±85 and lng within ±180")
+  const radius = typeof a.radius === "number" ? Math.min(Math.max(a.radius, 100), 3000) : 600
+  const dLat = radius / 111_320
+  const dLng = radius / (111_320 * Math.cos((lat * Math.PI) / 180))
+  // The box picks candidates; the distance keeps the ones within the radius.
+  const near = (p: { lat: number; lng: number }) => meters({ lat, lng }, p) <= radius
+  try {
+    const found = stationsIn({ south: lat - dLat, west: lng - dLng, north: lat + dLat, east: lng + dLng })
+    return { stations: found.stations.filter(near), exits: found.exits.filter(near) }
+  } catch (error) {
+    if (error instanceof TooWide || error instanceof RangeError) throw new InputError(error.message)
+    throw error
   }
 }
 
@@ -141,6 +160,21 @@ const tools: Tool[] = [
     ),
     annotations: { readOnlyHint: true },
     run: planRoute,
+  },
+  {
+    name: "find_stations",
+    description:
+      "Railway and subway stations and their exits (出口, with the number on the sign, for example A3) around a point, from OpenStreetMap. Use it to tell someone which exit to take for a place.",
+    inputSchema: object(
+      {
+        lat: { type: "number", minimum: -90, maximum: 90 },
+        lng: { type: "number", minimum: -180, maximum: 180 },
+        radius: { type: "number", description: "Meters around the point, 100 to 3000. Default 600." },
+      },
+      ["lat", "lng"],
+    ),
+    annotations: { readOnlyHint: true },
+    run: findStations,
   },
   {
     name: "delete_places",

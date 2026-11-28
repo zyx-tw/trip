@@ -12,9 +12,16 @@ const USER_AGENT =
   "trip.zyx.tw (personal trip planner; https://github.com/zyx-tw/trip)"
 /** Farther than this in a straight line, a leg is planned by transit. */
 export const WALK_LIMIT_M = 1500
+/** How many jobs a host may have queued before /api/route answers busy. */
+const ROUTE_QUEUE_MAX = 4
 const WALK_TTL = 30 * 86_400_000
 // Timetables change a few times a year; a week keeps legs fast without going stale.
 const TRANSIT_TTL = 7 * 86_400_000
+const MAX_TTL = Math.max(WALK_TTL, TRANSIT_TTL)
+/** The most routes the cache keeps. */
+const CACHE_ROWS = 20_000
+/** A walk offered when no transit runs, only up to this far. */
+const WALK_FALLBACK_M = 5000
 
 const g = globalThis as unknown as {
   tripQueues?: Map<string, Promise<unknown>>
@@ -25,9 +32,17 @@ const queues = (g.tripQueues ??= new Map())
 const loading = (g.tripLoading ??= new Map())
 
 /** Runs `job` after the previous request to the same host, at least 1.1 s apart. */
+/** Jobs waiting or running per host, so callers that can wait less can back off. */
+const waiting = new Map<string, number>()
+
+/** Thrown when a host already has a few jobs queued and the caller should try later. */
+export class Busy extends Error {}
+
 function paced<T>(host: string, job: () => Promise<T>): Promise<T> {
   const previous = queues.get(host) ?? Promise.resolve()
-  const next = previous.then(job, job)
+  waiting.set(host, (waiting.get(host) ?? 0) + 1)
+  const done = () => waiting.set(host, (waiting.get(host) ?? 1) - 1)
+  const next = previous.then(job, job).finally(done)
   queues.set(
     host,
     next.then(
@@ -51,12 +66,19 @@ async function cached<T>(
   if (pending) return pending
   const job = load()
     .then((value) => {
-      if (value !== null)
+      if (value !== null) {
         db()
           .prepare(
             "insert or replace into route_cache (key, body, created_at) values (?, ?, ?)"
           )
           .run(key, JSON.stringify(value), Date.now())
+        // Expired rows are never read again; drop them so the cache cannot grow without end.
+        db().prepare("delete from route_cache where created_at < ?").run(Date.now() - MAX_TTL)
+        // And keep at most CACHE_ROWS, newest first, so a busy caller cannot fill the disk.
+        db()
+          .prepare("delete from route_cache where key not in (select key from route_cache order by created_at desc limit ?)")
+          .run(CACHE_ROWS)
+      }
       return value
     })
     .finally(() => loading.delete(key))
@@ -92,7 +114,7 @@ const at = (p: { lat: number; lng: number }) =>
 
 type Walk = { minutes: number; meters: number; line: [number, number][] }
 
-export function walk(a: Place, b: Place): Promise<Walk | null> {
+export function walk(a: { lat: number; lng: number }, b: { lat: number; lng: number }): Promise<Walk | null> {
   return cached(`walk:${at(a)};${at(b)}`, WALK_TTL, () =>
     paced("osrm", async () => {
       const body = (await getJson(
@@ -118,6 +140,8 @@ export function walk(a: Place, b: Place): Promise<Walk | null> {
 
 type TransitLeg = {
   mode: string
+  routeColor?: string
+  legGeometry?: { points: string; precision: number }
   duration: number
   startTime: string
   endTime: string
@@ -290,4 +314,105 @@ export async function tripLegs(trip: TripWithPlaces): Promise<Leg[]> {
     }
   }
   return legs
+}
+
+/** The points of an encoded polyline, as [lng, lat]. */
+export function decodePolyline(points: string, precision: number): [number, number][] {
+  const scale = 10 ** precision
+  const line: [number, number][] = []
+  let lat = 0
+  let lng = 0
+  let i = 0
+  const next = () => {
+    let shift = 0
+    let value = 0
+    let byte: number
+    do {
+      byte = points.charCodeAt(i++) - 63
+      value |= (byte & 0x1f) << shift
+      shift += 5
+    } while (byte >= 0x20 && i < points.length)
+    return value & 1 ? ~(value >> 1) : value >> 1
+  }
+  while (i < points.length) {
+    lat += next()
+    lng += next()
+    line.push([lng / scale, lat / scale])
+  }
+  return line
+}
+
+/** One part of a route on the map: a walk, or a ride with its line's color. */
+export type Segment = {
+  mode: string
+  /** The ride's name, empty for a walk. */
+  name: string
+  /** #rrggbb, empty when the timetable gives none. */
+  color: string
+  from: string
+  to: string
+  departs: string
+  arrives: string
+  line: [number, number][]
+}
+
+export type Route =
+  | { mode: "walk"; minutes: number; meters: number; line: [number, number][] }
+  | { mode: "transit"; minutes: number; departs: string; arrives: string; transfers: number; segments: Segment[] }
+
+/**
+ * How to get from a to b leaving at a time: a walk when it is short, else the
+ * first transit trip with the path of every part, for drawing on a map.
+ */
+export async function routeBetween(
+  a: { lat: number; lng: number },
+  b: { lat: number; lng: number },
+  opts: { day: string; time: string; timeZone: string }
+): Promise<Route | null> {
+  // The same 6 decimals in the cache key and in the request, so keys never alias.
+  const round = (p: { lat: number; lng: number }) => ({ lat: +p.lat.toFixed(6), lng: +p.lng.toFixed(6) })
+  a = round(a)
+  b = round(b)
+  const asWalk = async () => {
+    const w = await walk(a, b)
+    return w ? { mode: "walk" as const, ...w } : null
+  }
+  // Trip pages and MCP share these queues; a map client waits at most a few jobs.
+  const host = meters(a, b) <= WALK_LIMIT_M ? "osrm" : "transitous"
+  if ((waiting.get(host) ?? 0) >= ROUTE_QUEUE_MAX) throw new Busy(`${host} is busy`)
+  if (host === "osrm") return asWalk()
+  const when = `${opts.day}T${opts.time}:00${offset(opts.day, opts.timeZone)}`
+  const transit = await cached(`route:${at(a)};${at(b)};${when}`, TRANSIT_TTL, () =>
+    paced("transitous", async () => {
+      const url = new URL("https://api.transitous.org/api/v5/plan")
+      url.searchParams.set("fromPlace", `${a.lat},${a.lng}`)
+      url.searchParams.set("toPlace", `${b.lat},${b.lng}`)
+      url.searchParams.set("time", when)
+      url.searchParams.set("numItineraries", "1")
+      const body = (await getJson(url.href)) as { itineraries?: Itinerary[] }
+      const it = body.itineraries?.[0]
+      if (!it) return null
+      return {
+        mode: "transit" as const,
+        minutes: Math.round(it.duration / 60),
+        departs: clock(it.startTime, opts.timeZone),
+        arrives: clock(it.endTime, opts.timeZone),
+        transfers: it.transfers,
+        segments: it.legs.map((l) => ({
+          mode: l.mode,
+          name: l.mode === "WALK" ? "" : l.displayName || l.routeShortName || l.mode,
+          color: l.routeColor ? `#${l.routeColor}` : "",
+          from: l.from.name,
+          to: l.to.name,
+          departs: clock(l.startTime, opts.timeZone),
+          arrives: clock(l.endTime, opts.timeZone),
+          line: l.legGeometry ? decodePolyline(l.legGeometry.points, l.legGeometry.precision) : [],
+        })),
+      }
+    })
+  )
+  // Transitous drops transit slower than walking, so no trip can still mean a walk.
+  if (transit || meters(a, b) > WALK_FALLBACK_M) return transit
+  if ((waiting.get("osrm") ?? 0) >= ROUTE_QUEUE_MAX) throw new Busy("osrm is busy")
+  return asWalk()
 }
