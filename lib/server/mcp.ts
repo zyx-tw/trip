@@ -78,7 +78,7 @@ function findStations(a: Args) {
     const found = stationsIn({ south: lat - dLat, west: lng - dLng, north: lat + dLat, east: lng + dLng })
     return { stations: found.stations.filter(near), exits: found.exits.filter(near) }
   } catch (error) {
-    if (error instanceof TooWide) throw new InputError(error.message)
+    if (error instanceof TooWide || error instanceof RangeError) throw new InputError(error.message)
     throw error
   }
 }

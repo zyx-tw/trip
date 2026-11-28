@@ -18,6 +18,10 @@ const WALK_TTL = 30 * 86_400_000
 // Timetables change a few times a year; a week keeps legs fast without going stale.
 const TRANSIT_TTL = 7 * 86_400_000
 const MAX_TTL = Math.max(WALK_TTL, TRANSIT_TTL)
+/** The most routes the cache keeps. */
+const CACHE_ROWS = 20_000
+/** A walk offered when no transit runs, only up to this far. */
+const WALK_FALLBACK_M = 5000
 
 const g = globalThis as unknown as {
   tripQueues?: Map<string, Promise<unknown>>
@@ -70,6 +74,10 @@ async function cached<T>(
           .run(key, JSON.stringify(value), Date.now())
         // Expired rows are never read again; drop them so the cache cannot grow without end.
         db().prepare("delete from route_cache where created_at < ?").run(Date.now() - MAX_TTL)
+        // And keep at most CACHE_ROWS, newest first, so a busy caller cannot fill the disk.
+        db()
+          .prepare("delete from route_cache where key not in (select key from route_cache order by created_at desc limit ?)")
+          .run(CACHE_ROWS)
       }
       return value
     })
@@ -404,5 +412,7 @@ export async function routeBetween(
     })
   )
   // Transitous drops transit slower than walking, so no trip can still mean a walk.
-  return transit ?? asWalk()
+  if (transit || meters(a, b) > WALK_FALLBACK_M) return transit
+  if ((waiting.get("osrm") ?? 0) >= ROUTE_QUEUE_MAX) throw new Busy("osrm is busy")
+  return asWalk()
 }
