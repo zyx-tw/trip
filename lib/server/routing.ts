@@ -92,7 +92,7 @@ const at = (p: { lat: number; lng: number }) =>
 
 type Walk = { minutes: number; meters: number; line: [number, number][] }
 
-export function walk(a: Place, b: Place): Promise<Walk | null> {
+export function walk(a: { lat: number; lng: number }, b: { lat: number; lng: number }): Promise<Walk | null> {
   return cached(`walk:${at(a)};${at(b)}`, WALK_TTL, () =>
     paced("osrm", async () => {
       const body = (await getJson(
@@ -118,6 +118,8 @@ export function walk(a: Place, b: Place): Promise<Walk | null> {
 
 type TransitLeg = {
   mode: string
+  routeColor?: string
+  legGeometry?: { points: string; precision: number }
   duration: number
   startTime: string
   endTime: string
@@ -290,4 +292,93 @@ export async function tripLegs(trip: TripWithPlaces): Promise<Leg[]> {
     }
   }
   return legs
+}
+
+/** The points of an encoded polyline, as [lng, lat]. */
+export function decodePolyline(points: string, precision: number): [number, number][] {
+  const scale = 10 ** precision
+  const line: [number, number][] = []
+  let lat = 0
+  let lng = 0
+  let i = 0
+  const next = () => {
+    let shift = 0
+    let value = 0
+    let byte: number
+    do {
+      byte = points.charCodeAt(i++) - 63
+      value |= (byte & 0x1f) << shift
+      shift += 5
+    } while (byte >= 0x20 && i < points.length)
+    return value & 1 ? ~(value >> 1) : value >> 1
+  }
+  while (i < points.length) {
+    lat += next()
+    lng += next()
+    line.push([lng / scale, lat / scale])
+  }
+  return line
+}
+
+/** One part of a route on the map: a walk, or a ride with its line's color. */
+export type Segment = {
+  mode: string
+  /** The ride's name, empty for a walk. */
+  name: string
+  /** #rrggbb, empty when the timetable gives none. */
+  color: string
+  from: string
+  to: string
+  departs: string
+  arrives: string
+  line: [number, number][]
+}
+
+export type Route =
+  | { mode: "walk"; minutes: number; meters: number; line: [number, number][] }
+  | { mode: "transit"; minutes: number; departs: string; arrives: string; transfers: number; segments: Segment[] }
+
+/**
+ * How to get from a to b leaving at a time: a walk when it is short, else the
+ * first transit trip with the path of every part, for drawing on a map.
+ */
+export async function routeBetween(
+  a: { lat: number; lng: number },
+  b: { lat: number; lng: number },
+  opts: { day: string; time: string; timeZone: string }
+): Promise<Route | null> {
+  if (meters(a, b) <= WALK_LIMIT_M) {
+    const w = await walk(a, b)
+    return w ? { mode: "walk", ...w } : null
+  }
+  const when = `${opts.day}T${opts.time}:00${offset(opts.day, opts.timeZone)}`
+  return cached(`route:${at(a)};${at(b)};${when}`, TRANSIT_TTL, () =>
+    paced("transitous", async () => {
+      const url = new URL("https://api.transitous.org/api/v5/plan")
+      url.searchParams.set("fromPlace", `${a.lat},${a.lng}`)
+      url.searchParams.set("toPlace", `${b.lat},${b.lng}`)
+      url.searchParams.set("time", when)
+      url.searchParams.set("numItineraries", "1")
+      const body = (await getJson(url.href)) as { itineraries?: Itinerary[] }
+      const it = body.itineraries?.[0]
+      if (!it) return null
+      return {
+        mode: "transit" as const,
+        minutes: Math.round(it.duration / 60),
+        departs: clock(it.startTime, opts.timeZone),
+        arrives: clock(it.endTime, opts.timeZone),
+        transfers: it.transfers,
+        segments: it.legs.map((l) => ({
+          mode: l.mode,
+          name: l.mode === "WALK" ? "" : l.displayName || l.routeShortName || l.mode,
+          color: l.routeColor ? `#${l.routeColor}` : "",
+          from: l.from.name,
+          to: l.to.name,
+          departs: clock(l.startTime, opts.timeZone),
+          arrives: clock(l.endTime, opts.timeZone),
+          line: l.legGeometry ? decodePolyline(l.legGeometry.points, l.legGeometry.precision) : [],
+        })),
+      }
+    })
+  )
 }

@@ -70,10 +70,16 @@ export function signOut(cookieHeader: string | null): Response {
   return new Response(null, { status: 303, headers: { location: "/", "set-cookie": cookie("", 0), "cache-control": "no-store" } })
 }
 
-/** True when the request carries the MCP token. Only a header counts, never a cookie. */
-export function hasToken(req: Request): boolean {
-  const expected = config().token
+function bearer(req: Request, expected: string | null): boolean {
   const header = req.headers.get("authorization")
   if (!expected || !header?.startsWith("Bearer ")) return false
   return timingSafeEqual(sha256(header.slice(7)), sha256(expected))
+}
+
+/** True when the request carries the MCP token. Only a header counts, never a cookie. */
+export const hasToken = (req: Request) => bearer(req, config().token)
+
+/** True when the request may read: a signed-in page, the MCP token, or the read-only token. */
+export async function canRead(req: Request): Promise<boolean> {
+  return bearer(req, config().token) || bearer(req, config().readToken) || (await signedIn(req.headers.get("cookie")))
 }
