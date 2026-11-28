@@ -303,19 +303,18 @@
 /* The map fills the window. Bottom right: the locate button, then the attribution, in one row. */
 .maplibregl-map .maplibregl-ctrl-bottom-right {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   gap: 8px;
-  bottom: calc(var(--gutter) - 10px);
-  right: calc(var(--gutter) - 10px);
+  bottom: var(--gutter);
+  right: var(--gutter);
+}
+.maplibregl-map .maplibregl-ctrl-bottom-right .maplibregl-ctrl {
+  margin: 0;
 }
 @media (width < 64rem) {
-  /* The phone sheet covers the bottom: the row goes under the logo. */
+  /* The place cards fill the bottom: the row sits just above them (168px is CARD_PX). */
   .maplibregl-map .maplibregl-ctrl-bottom-right {
-    top: calc(var(--gutter) + 2.5rem);
-    bottom: auto;
-    right: auto;
-    left: calc(var(--gutter) - 10px);
-    align-items: flex-start;
+    bottom: calc(var(--gutter) + 168px + 8px);
   }
 }
 

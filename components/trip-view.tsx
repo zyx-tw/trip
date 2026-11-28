@@ -12,7 +12,9 @@ import {
 import { TopCorners } from "@/components/corners"
 import { FrameEdges } from "@/components/ui/frame"
 import { Input } from "@/components/ui/input"
-import { Photo, preloadPhotos } from "@/components/photo"
+import { preloadPhotos } from "@/components/photo"
+import { CARD_PX, PlaceCarousel } from "@/components/place-carousel"
+import { PlaceDetail, PlaceLinks } from "@/components/place-detail"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
 import { country } from "@/lib/countries"
 import { daysOf, formatDay, formatRange } from "@/lib/dates"
@@ -37,7 +39,7 @@ export function TripView({ initial }: { initial: TripWithPlaces }) {
   const [trip, setTrip] = useState(initial)
   const [selected, setSelected] = useState<string | null>(null)
   const [legs, setLegs] = useState<Leg[]>([])
-  /** On a phone: the list sheet pulled up (true) or resting low (false). */
+  /** On a phone: the centered card pulled up (true) or resting low (false). */
   const [open, setOpen] = useState(false)
   const wide = useWide()
   const [query, setQuery] = useState("")
@@ -140,7 +142,7 @@ export function TripView({ initial }: { initial: TripWithPlaces }) {
   // The part of the map the panel covers, so pins land in the visible part.
   const padding = wide
     ? { left: 440, top: 60, right: 60, bottom: 60 }
-    : { left: 24, top: 60, right: 24, bottom: open ? 0 : SHEET_LOW_PX + 24 }
+    : { left: 24, top: 60, right: 24, bottom: CARD_PX + 48 }
 
   return (
     <>
@@ -158,179 +160,137 @@ export function TripView({ initial }: { initial: TripWithPlaces }) {
         trail={[{ label: "旅行", href: "/" }, { label: trip.title }]}
         nav={<ThemeToggle />}
       />
-      <aside
-        aria-label="行程"
-        className={cn(
-          "fixed z-10 flex flex-col border-muted-foreground bg-background/70 backdrop-blur-md motion-safe:transition-[height] motion-safe:duration-300",
-          // Phone: a sheet along the bottom. Wide screens: a panel on the left.
-          "inset-x-0 bottom-0 border-t",
-          open ? "h-[85dvh]" : "h-(--sheet-low)",
-          "lg:top-[calc(var(--gutter)+2.5rem)] lg:bottom-(--gutter) lg:left-(--gutter) lg:h-auto lg:w-100 lg:border-t-0"
-        )}
-        style={{ "--sheet-low": `${SHEET_LOW_PX}px` } as React.CSSProperties}
-      >
-        {/* On wide screens the panel is framed like the search box. */}
-        <FrameEdges className="max-lg:hidden" />
-        <button
-          type="button"
-          aria-expanded={open}
-          aria-label={open ? "收合" : "展開"}
-          onClick={() => setOpen((v) => !v)}
-          className="flex h-10 shrink-0 items-center justify-center lg:hidden"
+      {wide ? (
+        <aside
+          aria-label="行程"
+          className={cn(
+            "fixed top-[calc(var(--gutter)+2.5rem)] bottom-(--gutter) left-(--gutter) z-10 flex w-100 flex-col bg-background/70 backdrop-blur-md"
+          )}
         >
-          <span aria-hidden className="h-1 w-10 bg-muted-foreground" />
-        </button>
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-16 lg:pt-5">
-          <h1 className="text-title font-medium">{trip.title}</h1>
-          <p className="mt-1 text-muted-foreground">
-            {formatRange(trip.startDate, trip.endDate)}
-          </p>
-          {trip.note && (
-            <p className="mt-3 text-caption whitespace-pre-line text-muted-foreground">
-              {trip.note}
+          <FrameEdges />
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-5 pb-16">
+            <h1 className="text-title font-medium">{trip.title}</h1>
+            <p className="mt-1 text-muted-foreground">
+              {formatRange(trip.startDate, trip.endDate)}
             </p>
-          )}
-          <Input
-            type="search"
-            aria-label="搜尋"
-            placeholder="搜尋"
-            className="mt-5"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-          {visible.length === 0 && (
-            <p className="mt-10 text-muted-foreground">沒有符合的地點</p>
-          )}
-          <ol className="mt-6 flex flex-col">
-            {visible.map((place, i) => {
-              const before = visible[i - 1]
-              const after = visible[i + 1]
-              // The way here: from the place above, or from the night's stay.
-              const leg =
-                !filtering && place.day
-                  ? legTo.get(`${place.day}:${place.id}`)
-                  : undefined
-              // After the day's last place: the way back to the night's stay.
-              const home =
-                !filtering && place.day && after?.day !== place.day
-                  ? legs.find((l) => l.day === place.day && l.from === place.id)
-                  : undefined
-              const links = [...c.placeLinks(place), ...place.pages]
-              return (
-                <Fragment key={place.id}>
-                  {leg && (
-                    <LegRow
-                      leg={leg}
-                      from={
-                        before?.id === leg.from
-                          ? undefined
-                          : nameOf.get(leg.from)
-                      }
-                    />
-                  )}
-                  <li
-                    id={`place-${place.id}`}
-                    aria-current={selected === place.id ? "true" : undefined}
-                    className={cn(
-                      // The row's color runs to the panel's edges.
-                      "-mx-5 flex cursor-pointer scroll-mt-24 gap-3 border-t border-border px-5 py-4 hover:bg-muted/40",
-                      selected === place.id && "bg-muted/70 hover:bg-muted/70"
+            <Input
+              type="search"
+              aria-label="搜尋"
+              placeholder="搜尋"
+              className="mt-5"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+            {visible.length === 0 && (
+              <p className="mt-10 text-muted-foreground">沒有符合的地點</p>
+            )}
+            <ol className="mt-6 flex flex-col">
+              {visible.map((place, i) => {
+                const before = visible[i - 1]
+                const after = visible[i + 1]
+                // The way here: from the place above, or from the night's stay.
+                const leg =
+                  !filtering && place.day
+                    ? legTo.get(`${place.day}:${place.id}`)
+                    : undefined
+                // After the day's last place: the way back to the night's stay.
+                const home =
+                  !filtering && place.day && after?.day !== place.day
+                    ? legs.find((l) => l.day === place.day && l.from === place.id)
+                    : undefined
+                const links = [...c.placeLinks(place), ...place.pages]
+                return (
+                  <Fragment key={place.id}>
+                    {leg && (
+                      <LegRow
+                        leg={leg}
+                        from={
+                          before?.id === leg.from
+                            ? undefined
+                            : nameOf.get(leg.from)
+                        }
+                      />
                     )}
-                    // Tapping a row opens it and shows the place; tapping it again closes it.
-                    onClick={() =>
-                      setSelected((v) => (v === place.id ? null : place.id))
-                    }
-                  >
-                    <span aria-hidden className="w-6 shrink-0">
-                      {CATEGORY_EMOJI[place.category]}
-                    </span>
-                    <span className="flex min-w-0 flex-1 flex-col">
-                      <span lang="ja">{place.name}</span>
-                      {place.nameZh && (
-                        <span className="text-muted-foreground">
-                          {place.nameZh}
-                        </span>
+                    <li
+                      id={`place-${place.id}`}
+                      aria-current={selected === place.id ? "true" : undefined}
+                      className={cn(
+                        // The row's color runs to the panel's edges.
+                        "-mx-5 flex cursor-pointer scroll-mt-24 gap-3 border-t border-border px-5 py-4 hover:bg-muted/40",
+                        selected === place.id && "bg-muted/70 hover:bg-muted/70"
                       )}
-                      {place.day && (
-                        <span className="text-caption text-muted-foreground">
-                          {[formatDay(place.day), place.time]
-                            .filter(Boolean)
-                            .join(" ")}
-                        </span>
-                      )}
-                      <span
-                        className={cn(
-                          "grid motion-safe:transition-[grid-template-rows] motion-safe:duration-300",
-                          selected === place.id
-                            ? "grid-rows-[1fr]"
-                            : "grid-rows-[0fr]"
+                      // Tapping a row opens it and shows the place; tapping it again closes it.
+                      onClick={() =>
+                        setSelected((v) => (v === place.id ? null : place.id))
+                      }
+                    >
+                      <span aria-hidden className="w-6 shrink-0">
+                        {CATEGORY_EMOJI[place.category]}
+                      </span>
+                      <span className="flex min-w-0 flex-1 flex-col">
+                        <span lang="ja">{place.name}</span>
+                        {place.nameZh && (
+                          <span className="text-muted-foreground">
+                            {place.nameZh}
+                          </span>
                         )}
-                      >
-                        <span className="flex min-h-0 flex-col overflow-hidden">
-                          {selected === place.id && place.photos.length > 0 && (
-                            // Each picture fills the row's width; swipe or scroll sideways for the next.
-                            <span className="mt-3 flex snap-x snap-mandatory gap-2 overflow-x-auto">
-                              {place.photos.map((src) => (
-                                <Photo
-                                  key={src}
-                                  url={src}
-                                  className={cn(
-                                    "aspect-[3/2] shrink-0 snap-start",
-                                    // With more than one, the next one peeks in from the right.
-                                    place.photos.length > 1
-                                      ? "w-[88%]"
-                                      : "w-full"
-                                  )}
-                                />
-                              ))}
-                            </span>
+                        {place.day && (
+                          <span className="text-caption text-muted-foreground">
+                            {[formatDay(place.day), place.time]
+                              .filter(Boolean)
+                              .join(" ")}
+                          </span>
+                        )}
+                        <span
+                          className={cn(
+                            "grid motion-safe:transition-[grid-template-rows] motion-safe:duration-300",
+                            selected === place.id
+                              ? "grid-rows-[1fr]"
+                              : "grid-rows-[0fr]"
                           )}
-                          {place.note && (
-                            <span className="mt-3 text-caption whitespace-pre-line">
-                              {place.note}
-                            </span>
-                          )}
-                          {place.address && (
-                            <span
-                              lang="ja"
-                              className="mt-2 text-caption text-muted-foreground"
-                            >
-                              {place.address}
-                            </span>
-                          )}
-                          {links.length > 0 && (
-                            <span className="mt-1 flex flex-wrap gap-x-4 text-caption">
-                              {links.map((link) => (
-                                <a
-                                  key={link.label}
-                                  href={link.url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="py-2 text-muted-foreground hover:text-foreground"
-                                >
-                                  {link.label}
-                                </a>
-                              ))}
-                            </span>
-                          )}
+                        >
+                          <span className="flex min-h-0 flex-col overflow-hidden">
+                            {selected === place.id && (
+                              <PlaceDetail place={place} links={links} />
+                            )}
+                          </span>
                         </span>
                       </span>
-                    </span>
-                  </li>
-                  {home && <LegRow leg={home} to={nameOf.get(home.to)} />}
-                </Fragment>
-              )
-            })}
-          </ol>
+                    </li>
+                    {home && <LegRow leg={home} to={nameOf.get(home.to)} />}
+                  </Fragment>
+                )
+              })}
+            </ol>
+          </div>
+        </aside>
+      ) : (
+        <div className="fixed inset-x-0 bottom-(--gutter) z-10">
+          <PlaceCarousel
+            places={ordered}
+            selected={selected}
+            onSelect={(id) => {
+              setOpen(false)
+              setSelected(id)
+            }}
+            open={open}
+            onToggle={() => setOpen((v) => !v)}
+            render={(place, opened) => (
+              <PlaceCard
+                place={place}
+                open={opened}
+                leg={
+                  place.day ? legTo.get(`${place.day}:${place.id}`) : undefined
+                }
+                links={[...c.placeLinks(place), ...place.pages]}
+              />
+            )}
+          />
         </div>
-      </aside>
+      )}
     </>
   )
 }
-
-/** Height of the phone sheet at rest: the title, the dates, the search and the first place. */
-const SHEET_LOW_PX = 300
 
 /** True on screens wide enough for the side panel (Tailwind lg). The server renders the phone layout. */
 const WIDE = "(min-width: 1024px)"
@@ -369,5 +329,51 @@ function LegRow({ leg, from, to }: { leg: Leg; from?: string; to?: string }) {
         </span>
       ))}
     </div>
+  )
+}
+
+/** A place on its phone card: names and day, then its photos and note when pulled up. */
+function PlaceCard({
+  place,
+  open,
+  leg,
+  links,
+}: {
+  place: TripWithPlaces["places"][number]
+  open: boolean
+  leg?: Leg
+  links: { label: string; url: string }[]
+}) {
+  return (
+    <span className="flex min-w-0 gap-3">
+      <span aria-hidden className="w-6 shrink-0">
+        {CATEGORY_EMOJI[place.category]}
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span lang="ja" className="truncate">
+          {place.name}
+        </span>
+        {place.nameZh && (
+          <span className="truncate text-muted-foreground">
+            {place.nameZh}
+          </span>
+        )}
+        {place.day && (
+          <span className="text-caption text-muted-foreground">
+            {[formatDay(place.day), place.time].filter(Boolean).join(" ")}
+          </span>
+        )}
+        {leg && (
+          <span className="text-caption text-muted-foreground">
+            {leg.mode === "walk" ? "走路" : "交通"} {leg.minutes} 分
+          </span>
+        )}
+        {open ? (
+          <PlaceDetail place={place} links={links} />
+        ) : (
+          links.length > 0 && <PlaceLinks links={links} />
+        )}
+      </span>
+    </span>
   )
 }
