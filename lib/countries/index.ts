@@ -19,5 +19,5 @@ export type Country = {
 export const COUNTRIES: Record<string, Country> = { jp }
 
 export function country(code: string): Country {
-  return COUNTRIES[code] ?? jp
+  return Object.hasOwn(COUNTRIES, code) ? COUNTRIES[code] : jp
 }

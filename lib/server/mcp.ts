@@ -1,6 +1,6 @@
 import { COUNTRIES, country } from "../countries"
 import { CATEGORIES } from "../types"
-import { planTransit } from "./routing"
+import { meters, planTransit } from "./routing"
 import { TooWide, stationsIn } from "./stations"
 import { InputError, addPlaces, deletePlaces, deleteTrip, getTrip, listTrips, saveTrip, updatePlace } from "./trips"
 
@@ -67,12 +67,16 @@ async function planRoute(a: Args) {
 
 function findStations(a: Args) {
   const { lat, lng } = a as { lat?: unknown; lng?: unknown }
-  if (typeof lat !== "number" || typeof lng !== "number") throw new InputError("lat and lng must be numbers")
+  if (typeof lat !== "number" || typeof lng !== "number" || !(Math.abs(lat) <= 85) || !(Math.abs(lng) <= 180))
+    throw new InputError("lat must be within ±85 and lng within ±180")
   const radius = typeof a.radius === "number" ? Math.min(Math.max(a.radius, 100), 3000) : 600
   const dLat = radius / 111_320
   const dLng = radius / (111_320 * Math.cos((lat * Math.PI) / 180))
+  // The box picks candidates; the distance keeps the ones within the radius.
+  const near = (p: { lat: number; lng: number }) => meters({ lat, lng }, p) <= radius
   try {
-    return stationsIn({ south: lat - dLat, west: lng - dLng, north: lat + dLat, east: lng + dLng })
+    const found = stationsIn({ south: lat - dLat, west: lng - dLng, north: lat + dLat, east: lng + dLng })
+    return { stations: found.stations.filter(near), exits: found.exits.filter(near) }
   } catch (error) {
     if (error instanceof TooWide) throw new InputError(error.message)
     throw error

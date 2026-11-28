@@ -49,6 +49,8 @@ function index(): Index {
 
 /** The stations and exits inside a view. Throws TooWide when it spans more than a few cells. */
 export function stationsIn(view: Bbox): { stations: Station[]; exits: Exit[] } {
+  const ok = [view.south, view.north].every((v) => Math.abs(v) <= 90) && [view.west, view.east].every((v) => Math.abs(v) <= 180)
+  if (!ok || view.south > view.north || view.west > view.east) throw new RangeError("the view is outside the map")
   const rows = [Math.floor(view.south / CELL), Math.floor(view.north / CELL)]
   const cols = [Math.floor(view.west / CELL), Math.floor(view.east / CELL)]
   if ((rows[1] - rows[0] + 1) * (cols[1] - cols[0] + 1) > MAX_CELLS) throw new TooWide("zoom in: the view spans too many cells")

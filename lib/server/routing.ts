@@ -12,6 +12,8 @@ const USER_AGENT =
   "trip.zyx.tw (personal trip planner; https://github.com/zyx-tw/trip)"
 /** Farther than this in a straight line, a leg is planned by transit. */
 export const WALK_LIMIT_M = 1500
+/** How many jobs a host may have queued before /api/route answers busy. */
+const ROUTE_QUEUE_MAX = 4
 const WALK_TTL = 30 * 86_400_000
 // Timetables change a few times a year; a week keeps legs fast without going stale.
 const TRANSIT_TTL = 7 * 86_400_000
@@ -25,9 +27,17 @@ const queues = (g.tripQueues ??= new Map())
 const loading = (g.tripLoading ??= new Map())
 
 /** Runs `job` after the previous request to the same host, at least 1.1 s apart. */
+/** Jobs waiting or running per host, so callers that can wait less can back off. */
+const waiting = new Map<string, number>()
+
+/** Thrown when a host already has a few jobs queued and the caller should try later. */
+export class Busy extends Error {}
+
 function paced<T>(host: string, job: () => Promise<T>): Promise<T> {
   const previous = queues.get(host) ?? Promise.resolve()
-  const next = previous.then(job, job)
+  waiting.set(host, (waiting.get(host) ?? 0) + 1)
+  const done = () => waiting.set(host, (waiting.get(host) ?? 1) - 1)
+  const next = previous.then(job, job).finally(done)
   queues.set(
     host,
     next.then(
@@ -347,12 +357,20 @@ export async function routeBetween(
   b: { lat: number; lng: number },
   opts: { day: string; time: string; timeZone: string }
 ): Promise<Route | null> {
-  if (meters(a, b) <= WALK_LIMIT_M) {
+  // The same 6 decimals in the cache key and in the request, so keys never alias.
+  const round = (p: { lat: number; lng: number }) => ({ lat: +p.lat.toFixed(6), lng: +p.lng.toFixed(6) })
+  a = round(a)
+  b = round(b)
+  const asWalk = async () => {
     const w = await walk(a, b)
-    return w ? { mode: "walk", ...w } : null
+    return w ? { mode: "walk" as const, ...w } : null
   }
+  // Trip pages and MCP share these queues; a map client waits at most a few jobs.
+  const host = meters(a, b) <= WALK_LIMIT_M ? "osrm" : "transitous"
+  if ((waiting.get(host) ?? 0) >= ROUTE_QUEUE_MAX) throw new Busy(`${host} is busy`)
+  if (host === "osrm") return asWalk()
   const when = `${opts.day}T${opts.time}:00${offset(opts.day, opts.timeZone)}`
-  return cached(`route:${at(a)};${at(b)};${when}`, TRANSIT_TTL, () =>
+  const transit = await cached(`route:${at(a)};${at(b)};${when}`, TRANSIT_TTL, () =>
     paced("transitous", async () => {
       const url = new URL("https://api.transitous.org/api/v5/plan")
       url.searchParams.set("fromPlace", `${a.lat},${a.lng}`)
@@ -381,4 +399,6 @@ export async function routeBetween(
       }
     })
   )
+  // Transitous drops transit slower than walking, so no trip can still mean a walk.
+  return transit ?? asWalk()
 }
