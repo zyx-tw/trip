@@ -504,7 +504,8 @@ export async function departuresFrom(p: { lat: number; lng: number }, name: stri
       return body.stopTimes ?? []
     })
   })
-  const all = (rows ?? []).filter((s) => !s.cancelled && s.place.departure)
+  // A bare train number for a line name is the national feed repeating a train a regional feed names properly.
+  const all = (rows ?? []).filter((s) => !s.cancelled && s.place.departure && !/^\d+$/.test(s.displayName || s.routeShortName || ""))
   const named = all.filter((s) => s.place.name === name || s.place.name.startsWith(`${name} `))
   const seen = new Set<string>()
   const out: Departure[] = []
