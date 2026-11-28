@@ -67,8 +67,9 @@ export function stationsIn(view: Bbox): { stations: Station[]; exits: Exit[] } {
 
 /** Parses "south,west,north,east". */
 export function parseBbox(value: string | null): Bbox | null {
-  const n = (value ?? "").split(",").map(Number)
-  if (n.length !== 4 || n.some((v) => !Number.isFinite(v))) return null
+  const parts = (value ?? "").split(",")
+  if (parts.length !== 4 || !parts.every((v) => /^-?\d+(\.\d+)?$/.test(v))) return null
+  const n = parts.map(Number)
   const [south, west, north, east] = n
   if (south >= north || west >= east || south < -90 || north > 90 || west < -180 || east > 180) return null
   return { south, west, north, east }

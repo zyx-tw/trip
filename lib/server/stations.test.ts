@@ -10,6 +10,8 @@ describe("parseBbox", () => {
     expect(parseBbox("35.7,139.7,35.6,139.8")).toBeNull()
     expect(parseBbox("35.6,139.7,95,139.8")).toBeNull()
     expect(parseBbox("a,b,c,d")).toBeNull()
+    expect(parseBbox(",,0.01,0.01")).toBeNull()
+    expect(parseBbox("1e1,139.7,35.7,139.8")).toBeNull()
     expect(parseBbox(null)).toBeNull()
   })
 })

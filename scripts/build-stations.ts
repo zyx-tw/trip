@@ -37,6 +37,7 @@ for (const line of readFileSync(process.argv[2], "utf8").split("\n")) {
     const same = (byName.get(t.name) ?? []).find((i) => meters([stations[i][3], stations[i][4]], [lat, lng]) < SAME_STATION_M)
     if (same !== undefined) {
       // Keep one marker; a subway platform under a railway station still counts as the railway station.
+      if (kind === 0 && stations[same][2] === 1) stations[same] = [t.name, t["name:en"] ?? stations[same][1], 0, round(lat), round(lng)]
       continue
     }
     byName.set(t.name, [...(byName.get(t.name) ?? []), stations.length])

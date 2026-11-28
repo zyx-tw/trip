@@ -17,6 +17,7 @@ const ROUTE_QUEUE_MAX = 4
 const WALK_TTL = 30 * 86_400_000
 // Timetables change a few times a year; a week keeps legs fast without going stale.
 const TRANSIT_TTL = 7 * 86_400_000
+const MAX_TTL = Math.max(WALK_TTL, TRANSIT_TTL)
 
 const g = globalThis as unknown as {
   tripQueues?: Map<string, Promise<unknown>>
@@ -61,12 +62,15 @@ async function cached<T>(
   if (pending) return pending
   const job = load()
     .then((value) => {
-      if (value !== null)
+      if (value !== null) {
         db()
           .prepare(
             "insert or replace into route_cache (key, body, created_at) values (?, ?, ?)"
           )
           .run(key, JSON.stringify(value), Date.now())
+        // Expired rows are never read again; drop them so the cache cannot grow without end.
+        db().prepare("delete from route_cache where created_at < ?").run(Date.now() - MAX_TTL)
+      }
       return value
     })
     .finally(() => loading.delete(key))
