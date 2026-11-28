@@ -137,7 +137,7 @@ export function PlaceCarousel({
                   : { height: CARD_PX }
               }
               className={cn(
-                "flex w-[calc(100%-2*var(--gutter)-1rem)] shrink-0 cursor-pointer snap-center flex-col overflow-hidden border border-border bg-background/80 p-4 backdrop-blur-md",
+                "flex w-[calc(100%-2*var(--gutter)-1rem)] shrink-0 cursor-pointer snap-center flex-col overflow-hidden rounded-control border border-border bg-background/80 p-4 shadow-window backdrop-blur-md",
                 // Only a pulled-up card scrolls on its own; a closed one leaves every swipe to the row.
                 here && open && "overflow-y-auto",
                 "[interpolate-size:allow-keywords] motion-safe:transition-[height] motion-safe:duration-300"

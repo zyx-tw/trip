@@ -3,7 +3,6 @@
 import "maplibre-gl/dist/maplibre-gl.css"
 
 import * as maplibregl from "maplibre-gl"
-import { useTheme } from "next-themes"
 import { useEffect, useRef, useState } from "react"
 
 import type { Place } from "@/lib/types"
@@ -42,7 +41,6 @@ function drawLines(m: maplibregl.Map, lines: Line[]) {
 }
 
 const STYLE = {
-  dark: "https://tiles.openfreemap.org/styles/dark",
   light: "https://tiles.openfreemap.org/styles/positron",
 }
 
@@ -69,8 +67,7 @@ export function TripMap({
   const [broken] = useState(
     () => !document.createElement("canvas").getContext("webgl2")
   )
-  const { resolvedTheme } = useTheme()
-  const style = resolvedTheme === "light" ? STYLE.light : STYLE.dark
+  const style = STYLE.light
   const select = useRef(onSelect)
   useEffect(() => {
     select.current = onSelect
@@ -114,7 +111,7 @@ export function TripMap({
       placed.clear()
       fitted.current = false
     }
-    // The style follows the theme below; the map itself is made once.
+    // The map is made once.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
