@@ -1,5 +1,7 @@
 @import "tailwindcss";
+
 @import "tw-animate-css";
+
 @import "shadcn/tailwind.css";
 
 @custom-variant dark (&:is(.dark *));
@@ -11,7 +13,7 @@
   --text-title: 1.5rem;
   --text-title--line-height: 2rem;
   --text-body: 1rem;
-  --text-body--line-height: 1.5rem;
+  --text-body--line-height: 1.625rem;
   --text-caption: 0.875rem;
   --text-caption--line-height: 1.25rem;
   --font-sans:
@@ -51,36 +53,36 @@
       opacity: 0;
     }
   }
+  --text-headline: 2.5rem;
+  --text-headline--line-height: 3rem;
+  --radius-control: 0.625rem;
+  --shadow-window:
+    0 12px 32px -8px oklch(0.24 0.012 60 / 18%),
+    0 4px 8px -4px oklch(0.24 0.012 60 / 10%);
+  --radius-inner: 0.375rem;
+  --color-data-high: var(--data-high);
+  --color-data-mid: var(--data-mid);
+  --color-data-low: var(--data-low);
 }
 
 :root {
-  --background: oklch(0.97 0.005 85);
-  --foreground: oklch(0.25 0 0);
+  --background: oklch(0.975 0.008 95);
+  --foreground: oklch(0.24 0.012 60);
   --mark: oklch(0.78 0.16 62);
-  --primary: oklch(0.25 0 0);
-  --primary-foreground: oklch(0.97 0.005 85);
-  --muted: oklch(0.93 0.005 85);
-  --muted-foreground: oklch(0.52 0 0);
+  --primary: oklch(0.24 0.012 60);
+  --primary-foreground: oklch(0.975 0.008 95);
+  --muted: oklch(0.945 0.009 90);
+  --muted-foreground: oklch(0.5 0.01 70);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.89 0.005 85);
-  --input: oklch(0.89 0.005 85);
-  --ring: oklch(0.25 0 0);
-  --radius: 0;
+  --border: oklch(0.24 0.012 60 / 12%);
+  --input: oklch(0.24 0.012 60 / 18%);
+  --ring: oklch(0.24 0.012 60);
+  --radius: 0.625rem;
   --bezel: 0px;
   --gutter: 0.75rem;
-}
-
-.dark {
-  --background: oklch(0.17 0 0);
-  --foreground: oklch(0.88 0 0);
-  --primary: oklch(0.88 0 0);
-  --primary-foreground: oklch(0.17 0 0);
-  --muted: oklch(0.26 0 0);
-  --muted-foreground: oklch(0.62 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.88 0 0);
+  --data-low: oklch(0.72 0.15 150);
+  --data-mid: oklch(0.78 0.15 80);
+  --data-high: oklch(0.68 0.19 25);
 }
 
 @utility enter-row-* {
@@ -108,104 +110,55 @@
 @utility corner-right {
   right: calc(var(--bezel) + var(--gutter));
 }
+
 [data-slot="frame-edges"] {
   position: absolute;
-  inset: calc(var(--text-caption--line-height) / -2) -0.5ch;
+  inset: 0;
   z-index: 1;
-  display: grid;
-  grid-template-columns: 1ch minmax(0, 1fr) 1ch;
-  grid-template-rows: var(--text-caption--line-height) minmax(0, 1fr) var(
-      --text-caption--line-height
-    );
-  font-family: var(--font-mono);
-  font-size: var(--text-body);
-  font-weight: 400;
-  line-height: var(--text-caption--line-height);
-  white-space: pre;
-  text-align: start;
+  border: 1px solid currentColor;
+  border-radius: inherit;
   pointer-events: none;
   user-select: none;
 }
-[data-slot="frame-edges"] > * {
-  display: flex;
-  min-width: 0;
-}
+
 [data-slot="frame-edges"] [data-frame-text] {
-  flex: none;
-  padding-inline: 1ch;
-  color: var(--foreground);
+  position: absolute;
+  padding-inline: 0.5ch;
+  background: var(--background);
+  color: var(--muted-foreground);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  white-space: pre;
 }
-[data-edge="fill"] {
-  flex: 1;
-  min-width: 0;
-  margin-inline: -1px;
-  overflow: hidden;
-}
-[data-edge="top-left"]::before {
-  content: "╭" / "";
-}
-[data-edge="top-right"]::before {
-  content: "╮" / "";
-}
-[data-edge="bottom-left"]::before {
-  content: "╰" / "";
-}
-[data-edge="bottom-right"]::before {
-  content: "╯" / "";
-}
-[data-edge="lead"]::before {
-  content: "─" / "";
-}
-[data-edge="fill"]::before {
-  content: "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────" /
-    "";
-}
-[data-edge="side"] {
-  display: block;
-  margin-block: -1px;
-  overflow: hidden;
-  word-break: break-all;
-  white-space: normal;
-}
-[data-edge="side"]::before {
-  content: "││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││" /
-    "";
-}
+
 [data-slot="frame-side"] {
   position: absolute;
   inset-block: 0;
-  width: 1ch;
-  overflow: hidden;
-  font-family: var(--font-mono);
-  font-size: var(--text-body);
-  line-height: var(--text-caption--line-height);
-  word-break: break-all;
+  width: 1px;
+  background: currentColor;
   pointer-events: none;
-  user-select: none;
 }
+
 [data-slot="frame-side"][data-side="left"] {
-  left: -0.5ch;
+  left: 0;
 }
+
 [data-slot="frame-side"][data-side="right"] {
-  right: -0.5ch;
-}
-[data-slot="frame-side"]::before {
-  content: "││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││││" /
-    "";
+  right: 0;
 }
 
 @utility duration-state {
   --tw-duration: 150ms;
   transition-duration: 150ms;
-  --tw-ease: cubic-bezier(0, 0, 0.2, 1);
-  transition-timing-function: cubic-bezier(0, 0, 0.2, 1);
+  --tw-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @utility duration-overlay {
   --tw-duration: 200ms;
   transition-duration: 200ms;
-  --tw-ease: cubic-bezier(0, 0, 0.2, 1);
-  transition-timing-function: cubic-bezier(0, 0, 0.2, 1);
+  --tw-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @utility w-menu {
@@ -213,13 +166,17 @@
 }
 
 @utility terminal-link {
-  &:hover,
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+  transition: text-decoration-thickness 150ms cubic-bezier(0.22, 1, 0.36, 1);
+  &:hover {
+    text-decoration-thickness: 2px;
+  }
   &:focus-visible {
-    background-color: var(--foreground);
-    color: var(--background);
-    text-decoration-line: none;
-    outline: none;
-    box-shadow: 0 0 0 2px var(--foreground);
+    text-decoration-thickness: 2px;
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    border-radius: var(--radius-inner);
   }
 }
 
@@ -233,11 +190,11 @@
   body {
     @apply bg-background text-body text-foreground;
   }
-  .dark {
-    color-scheme: dark;
-  }
   ::selection {
-    @apply bg-foreground text-background;
+    @apply bg-foreground/15;
+  }
+  :root {
+    color-scheme: light;
   }
 }
 
@@ -264,6 +221,7 @@
     animation: none;
   }
 }
+
 [data-slot="corner-edge"] {
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
@@ -274,12 +232,15 @@
   );
   mask-image: linear-gradient(var(--edge-direction), #000 35%, transparent);
 }
+
 [data-slot="corner-edge"][data-edge="top"] {
   --edge-direction: to bottom;
 }
+
 [data-slot="corner-edge"][data-edge="bottom"] {
   --edge-direction: to top;
 }
+
 /* MapLibre's own controls, in the site's type and grays. */
 .maplibregl-ctrl-attrib,
 .maplibregl-ctrl-attrib a {
@@ -287,17 +248,18 @@
   font-size: var(--text-caption);
   line-height: var(--text-caption--line-height);
 }
+
 .maplibregl-ctrl.maplibregl-ctrl-attrib,
 .maplibregl-ctrl-group {
-  border-radius: 0;
+  border-radius: var(--radius-control);
+  box-shadow: none;
+  border: 1px solid var(--border);
   background: var(--background);
   color: var(--muted-foreground);
 }
+
 .maplibregl-ctrl-attrib a {
   color: var(--muted-foreground);
-}
-.dark .maplibregl-ctrl-group button .maplibregl-ctrl-icon {
-  filter: invert(1);
 }
 
 /* The map fills the window. Bottom right: the locate button, then the attribution, in one row. */
@@ -308,9 +270,11 @@
   bottom: var(--gutter);
   right: var(--gutter);
 }
+
 .maplibregl-map .maplibregl-ctrl-bottom-right .maplibregl-ctrl {
   margin: 0;
 }
+
 @media (width < 64rem) {
   /* The place cards fill the bottom: the row sits just above them (168px is CARD_PX). */
   .maplibregl-map .maplibregl-ctrl-bottom-right {
@@ -329,4 +293,18 @@
 
 .maplibregl-ctrl-bottom-right .maplibregl-ctrl-attrib {
   order: 2;
+}
+
+[data-slot="frame-edges"] [data-edge] {
+  display: none;
+}
+
+[data-slot="frame-edges"] > :nth-child(2) [data-frame-text] {
+  top: calc(var(--text-caption--line-height) / -2);
+  left: 1.5ch;
+}
+
+[data-slot="frame-edges"] > :nth-child(8) [data-frame-text] {
+  bottom: calc(var(--text-caption--line-height) / -2);
+  right: 1.5ch;
 }

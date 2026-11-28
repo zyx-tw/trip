@@ -15,7 +15,6 @@ import { Input } from "@/components/ui/input"
 import { preloadPhotos } from "@/components/photo"
 import { CARD_PX, PlaceCarousel } from "@/components/place-carousel"
 import { PlaceDetail, PlaceLinks } from "@/components/place-detail"
-import { ThemeToggle } from "@/components/ui/theme-toggle"
 import { country } from "@/lib/countries"
 import { daysOf, formatDay, formatRange } from "@/lib/dates"
 import { matches } from "@/lib/search"
@@ -158,18 +157,17 @@ export function TripView({ initial }: { initial: TripWithPlaces }) {
       {/* No bottom corners here: the owner wants the map clear to the edge. */}
       <TopCorners
         trail={[{ label: "旅行", href: "/" }, { label: trip.title }]}
-        nav={<ThemeToggle />}
       />
       {wide ? (
         <aside
           aria-label="行程"
           className={cn(
-            "fixed top-[calc(var(--gutter)+2.5rem)] bottom-(--gutter) left-(--gutter) z-10 flex w-100 flex-col bg-background/70 backdrop-blur-md"
+            "fixed top-[calc(var(--gutter)+2.5rem)] bottom-(--gutter) left-(--gutter) z-10 flex w-100 flex-col overflow-hidden rounded-control bg-background/70 shadow-window backdrop-blur-md"
           )}
         >
           <FrameEdges />
           <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-5 pb-16">
-            <h1 className="text-title font-medium">{trip.title}</h1>
+            <h1 className="text-title font-medium tracking-tight">{trip.title}</h1>
             <p className="mt-1 text-muted-foreground">
               {formatRange(trip.startDate, trip.endDate)}
             </p>
